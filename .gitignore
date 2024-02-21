@@ -5,6 +5,8 @@ __pycache__/
 
 # C extensions
 *.so
+point_e_model_cache/
+point-e/
 
 # Distribution / packaging
 .Python
