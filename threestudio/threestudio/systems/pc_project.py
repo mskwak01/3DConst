@@ -183,7 +183,7 @@ def render_noised_cloud(
         point_loc = torch.tensor(points.coords, dtype=torch.float32).to(device)
 
     feature = noise_tensor
-
+    
     matching_rotation = torch.tensor(
         [[[1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, -1.0, 0.0]]], dtype=torch.float32
     ).to(device)
@@ -247,14 +247,14 @@ def render_noised_cloud(
                 
         inter_pts = torch.tensor(total_intersection)
 
-        # Cosntant Noising for Intersecting Points
+        # Constant Noising for Intersecting Points
         
-        # tester = torch.zeros_like(noise_maps_tensor)
-        brand_new_noise = True
+        # brand_new_noise = True
         
         # if brand_new_noise:
-        noise_canvas = torch.zeros([point_loc.shape[0], noise_channel]).float().to(device)
+        noise_canvas = torch.zeros([point_loc.shape[0], noise_channel]).float().to(device)        
         noise_canvas[inter_pts] = torch.randn(inter_pts.shape[0],noise_channel).to(device)
+        
         # else:
         #     noise_canvas = torch.zeros([point_loc.shape[0], noise_channel]).float().to(device)
             
