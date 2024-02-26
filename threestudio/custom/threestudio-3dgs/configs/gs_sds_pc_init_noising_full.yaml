@@ -1,4 +1,4 @@
-name: "gs-sds-threefuse-con-full"
+name: "gs-sds-pc-init-con-full"
 tag: "${rmspace:${system.prompt_processor.prompt},_}"
 exp_root_dir: "outputs"
 seed: 0
@@ -18,11 +18,10 @@ data:
   num_multiview: 2
   multiview_deg: 30.0
 
-
 system_type: "gaussian-splatting-noising-system"
 system:
   image_dir: "/home/dreamer/host_files/matthew/matt_threestudio/threestudio/tower.png"
-  threefuse: true
+  threefuse: false
   three_noise: true
   identical_noising: true
   gaussian_dynamic: true
@@ -70,20 +69,35 @@ system:
 
   prompt_processor_type: "stable-diffusion-prompt-processor"
   prompt_processor:
-    pretrained_model_name_or_path: "runwayml/stable-diffusion-v1-5"
-    pretrained_model_name_or_path_aux: "stabilityai/stable-diffusion-2-1"
+    pretrained_model_name_or_path: "stabilityai/stable-diffusion-2-1-base"
     prompt: ???
     front_threshold: 30.
     back_threshold: 30.
-    multiple_encoders: true
 
-  guidance_type: "threefuse-guidance"
+  guidance_type: "stable-diffusion-guidance"
   guidance:
-    pretrained_model_name_or_path: "/home/cvlab15/project/ines/threestudio/controlnet"
+    pretrained_model_name_or_path: "stabilityai/stable-diffusion-2-1-base"
     guidance_scale: 100.0
     weighting_strategy: sds
     min_step_percent: 0.02
     max_step_percent: [2000, 0.98, 0.5, 2001]
+
+  # prompt_processor_type: "stable-diffusion-prompt-processor"
+  # prompt_processor:
+  #   pretrained_model_name_or_path: "runwayml/stable-diffusion-v1-5"
+  #   pretrained_model_name_or_path_aux: "stabilityai/stable-diffusion-2-1"
+  #   prompt: ???
+  #   front_threshold: 30.
+  #   back_threshold: 30.
+  #   multiple_encoders: true
+
+  # guidance_type: "threefuse-guidance"
+  # guidance:
+  #   pretrained_model_name_or_path: "/home/cvlab15/project/ines/threestudio/controlnet"
+  #   guidance_scale: 100.0
+  #   weighting_strategy: sds
+  #   min_step_percent: 0.02
+  #   max_step_percent: [2000, 0.98, 0.5, 2001]
 
   exporter_type: "gaussian-mesh-exporter"
 

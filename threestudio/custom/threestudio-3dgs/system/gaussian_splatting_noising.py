@@ -208,7 +208,7 @@ class GaussianSplatting(BaseLift3DSystem):
                 # import pdb; pdb.set_trace()
                 
                 if self.three_noise:
-                    noised_maps = render_noised_cloud(points, batch, noise_tensor, noise_raster_settings, noise_channel, cam_radius, device, 
+                    noised_maps, loc_tensor, inter_dict = render_noised_cloud(points, batch, noise_tensor, noise_raster_settings, noise_channel, cam_radius, device, 
                                                   dynamic_points=self.gaussian_dynamic, identical_noising=self.cfg.identical_noising)
        
                     noise_map = noised_maps
@@ -218,7 +218,8 @@ class GaussianSplatting(BaseLift3DSystem):
             guidance_inp = out["comp_rgb"]     
                                                
             guidance_out = self.guidance(
-                guidance_inp, self.prompt_utils, **batch, depth_map=depth_maps,  noise_map=noise_map, rgb_as_latents=False,
+                guidance_inp, self.prompt_utils, **batch, depth_map=depth_maps,  noise_map=noise_map, rgb_as_latents=False, 
+                idx_map=loc_tensor, inter_dict=inter_dict
             )
         
         else:
@@ -235,17 +236,19 @@ class GaussianSplatting(BaseLift3DSystem):
                     )
                 
                 cam_radius = batch["camera_distances"]
-                noised_maps = render_noised_cloud(points, batch, noise_tensor, noise_raster_settings, noise_channel, cam_radius, device, dynamic_points=self.gaussian_dynamic)
-                
+
                 if self.three_noise:
-                    noise_map = noised_maps[0]
+                    noised_maps, loc_tensor, inter_dict = render_noised_cloud(points, batch, noise_tensor, noise_raster_settings, noise_channel, cam_radius, device, 
+                                dynamic_points=self.gaussian_dynamic, identical_noising=self.cfg.identical_noising)
+                    noise_map = noised_maps
                 else:
                     noise_map = None
             
             guidance_inp = out["comp_rgb"]     
                                                
             guidance_out = self.guidance(
-                guidance_inp, self.prompt_utils, **batch, rgb_as_latents=False, noise_map=noise_map
+                guidance_inp, self.prompt_utils, **batch, noise_map=noise_map, rgb_as_latents=False, 
+                idx_map=loc_tensor, inter_dict=inter_dict
             )        
 
 
@@ -478,11 +481,13 @@ class GaussianSplatting(BaseLift3DSystem):
         coords,rgb,scale = self.shape()
         all_coords, all_rgb = self.add_points(coords,rgb)
         
+        fin_rgb = 0.4 * torch.ones_like(torch.tensor(all_rgb)).to(self.device)
+        
         deg = torch.deg2rad(torch.tensor([self.calibration_value]))
         rot_z = torch.tensor([[torch.cos(deg), -torch.sin(deg), 0],[torch.sin(deg), torch.cos(deg), 0],[0, 0, 1.]]).to(self.device)
         fin_coords = (rot_z[None,...] @ all_coords[...,None]).squeeze()
                 
-        pcd = BasicPointCloud(points=fin_coords, colors=all_rgb, normals=np.zeros((all_coords.shape[0], 3)))
+        pcd = BasicPointCloud(points=fin_coords, colors=fin_rgb, normals=np.zeros((all_coords.shape[0], 3)))
 
         return pcd
 

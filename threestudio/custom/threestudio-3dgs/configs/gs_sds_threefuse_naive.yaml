@@ -18,7 +18,6 @@ data:
   num_multiview: 2
   multiview_deg: 30.0
 
-
 system_type: "gaussian-splatting-noising-system"
 system:
   image_dir: "/home/dreamer/host_files/matthew/matt_threestudio/threestudio/tower.png"
@@ -102,7 +101,7 @@ system:
     lambda_depth_tv_loss: 1.0
 
 trainer:
-  max_steps: 5000
+  max_steps: 10000
   log_every_n_steps: 1
   num_sanity_val_steps: 0
   val_check_interval: 250

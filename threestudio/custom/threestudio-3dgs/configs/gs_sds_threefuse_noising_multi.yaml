@@ -1,4 +1,4 @@
-name: "gs-sds-threefuse-con-full"
+name: "gs-sds-threefuse-multi"
 tag: "${rmspace:${system.prompt_processor.prompt},_}"
 exp_root_dir: "outputs"
 seed: 0
@@ -77,7 +77,7 @@ system:
     back_threshold: 30.
     multiple_encoders: true
 
-  guidance_type: "threefuse-guidance"
+  guidance_type: "threefuse-multi-guidance"
   guidance:
     pretrained_model_name_or_path: "/home/cvlab15/project/ines/threestudio/controlnet"
     guidance_scale: 100.0

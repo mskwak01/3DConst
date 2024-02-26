@@ -9,5 +9,6 @@ from . import (
     zero123_guidance,
     zero123_unified_guidance,
     threefuse_vsd_guidance,
+    threefuse_multi_guidance,
     threefuse_guidance
 )

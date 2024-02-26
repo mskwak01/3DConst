@@ -231,20 +231,26 @@ def render_noised_cloud(
         runs = 0
         total_intersection = np.array([], dtype=np.int32)
         
+        inter_dict = {}
+        
         for num, tgt_idx_map in enumerate(idx_maps):
             
             other_list = idx_maps[num + 1:]
             idx_one = tgt_idx_map.reshape(-1,1).detach().cpu().numpy()
 
-            for other_idx_map in other_list:
+            for new_num, other_idx_map in enumerate(other_list):
                 
                 idx_two = other_idx_map.reshape(-1,1).detach().cpu().numpy()
                 new_inter = np.intersect1d(idx_one, idx_two)
+                
+                inter_key = str(num) + str(new_num + num + 1)
+
+                inter_dict[inter_key] = torch.tensor(new_inter)
 
                 total_intersection = np.union1d(total_intersection, new_inter)
 
                 runs += 1
-                
+                        
         inter_pts = torch.tensor(total_intersection)
 
         # Constant Noising for Intersecting Points
@@ -270,7 +276,7 @@ def render_noised_cloud(
         
     fin_noise = noise_maps_tensor.permute(0,3,1,2)
                             
-    return fin_noise
+    return fin_noise, loc_tensor, inter_dict
 
 
 def py3d_camera(radius, elevations, horizontals, FoV, device, img_size=800):
