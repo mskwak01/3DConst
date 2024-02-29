@@ -79,7 +79,7 @@ system:
 
   guidance_type: "threefuse-vsd-guidance"
   guidance:
-    pretrained_model_name_or_path: "/home/cvlab15/project/ines/threestudio/controlnet"
+    pretrained_model_name_or_path: "/mnt/data3/ines/threestudio/controlnet"
     pretrained_model_name_or_path_lora: "stabilityai/stable-diffusion-2-1"
     guidance_scale: 7.5
     min_step_percent: 0.02

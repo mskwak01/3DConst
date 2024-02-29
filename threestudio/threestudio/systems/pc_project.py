@@ -169,6 +169,8 @@ def render_noised_cloud(
     points, batch, noise_tensor, noised_raster_settings, noise_channel, cam_radius, device, calibration_value = 0, dynamic_points=False, identical_noising=False
 ):
     radius = cam_radius[0]
+    loc_tensor = None
+    inter_dict = None
 
     horizontal = batch["azimuth"].to(device).type(torch.float32) + calibration_value + 90
     elevation = batch["elevation"].to(device).type(torch.float32)
@@ -205,6 +207,8 @@ def render_noised_cloud(
         noise_map, raw_depth_map, idx_map = pointcloud_renderer(point_cloud, camera, noised_raster_settings, device, return_idx=True)
         raw_noise_maps.append(noise_map)
         
+        # import pdb; pdb.set_trace()
+    
         background_noise = (raw_depth_map < 0) * torch.randn(raw_depth_map.shape[0],raw_depth_map.shape[1], noise_channel).to(device)
         final_noise = noise_map[0] + background_noise
         
@@ -244,12 +248,9 @@ def render_noised_cloud(
                 new_inter = np.intersect1d(idx_one, idx_two)
                 
                 inter_key = str(num) + str(new_num + num + 1)
-
                 inter_dict[inter_key] = torch.tensor(new_inter)
 
                 total_intersection = np.union1d(total_intersection, new_inter)
-
-                runs += 1
                         
         inter_pts = torch.tensor(total_intersection)
 

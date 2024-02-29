@@ -30,6 +30,7 @@ class GaussianSplatting(BaseLift3DSystem):
         gaussian_dynamic : bool = False
         calibration_value: int = 0
         three_noise: bool = False
+        multidiffusion: bool = False
         identical_noising: bool = False
 
     cfg: Config
@@ -43,6 +44,7 @@ class GaussianSplatting(BaseLift3DSystem):
         self.image_dir = self.cfg.image_dir
         self.gaussian_dynamic = self.cfg.gaussian_dynamic
         self.three_noise = self.cfg.three_noise
+        self.multidiffusion = self.cfg.multidiffusion
 
         self.background_tensor = torch.tensor(
             self.cfg.back_ground_color, dtype=torch.float32, device="cuda"
@@ -214,9 +216,12 @@ class GaussianSplatting(BaseLift3DSystem):
                     noise_map = noised_maps
                 else:
                     noise_map = None
+                    loc_tensor = None
+                    inter_dict = None
                                  
             guidance_inp = out["comp_rgb"]     
-                                               
+            
+            # if self.multidiffusion:                           
             guidance_out = self.guidance(
                 guidance_inp, self.prompt_utils, **batch, depth_map=depth_maps,  noise_map=noise_map, rgb_as_latents=False, 
                 idx_map=loc_tensor, inter_dict=inter_dict
@@ -243,6 +248,8 @@ class GaussianSplatting(BaseLift3DSystem):
                     noise_map = noised_maps
                 else:
                     noise_map = None
+                    loc_tensor = None
+                    inter_dict = None
             
             guidance_inp = out["comp_rgb"]     
                                                

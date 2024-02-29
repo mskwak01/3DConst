@@ -79,7 +79,7 @@ system:
 
   guidance_type: "threefuse-multi-guidance"
   guidance:
-    pretrained_model_name_or_path: "/home/cvlab15/project/ines/threestudio/controlnet"
+    pretrained_model_name_or_path: "/mnt/data3/ines/threestudio/controlnet"
     guidance_scale: 100.0
     weighting_strategy: sds
     min_step_percent: 0.02
