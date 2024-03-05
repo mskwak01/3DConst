@@ -1,4 +1,4 @@
-name: "gs-sds-pc-init-naive"
+name: "gs-sds-pc-init-naive-all"
 tag: "${rmspace:${system.prompt_processor.prompt},_}"
 exp_root_dir: "outputs"
 seed: 0
@@ -17,6 +17,8 @@ data:
   rays_d_normalize: false
   num_multiview: 2
   multiview_deg: 30.0
+  front_optimize: false
+
 
 system_type: "gaussian-splatting-noising-system"
 system:
@@ -25,7 +27,6 @@ system:
   three_noise: false
   identical_noising: false
   gaussian_dynamic: true
-  front_optimize: false
   cons_noise_alter: 0
   geometry_type: "gaussian-splatting"
   calibration_value: 0

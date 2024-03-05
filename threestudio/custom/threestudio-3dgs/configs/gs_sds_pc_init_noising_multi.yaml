@@ -75,7 +75,7 @@ system:
     front_threshold: 30.
     back_threshold: 30.
 
-  guidance_type: "stable-diffusion-guidance"
+  guidance_type: "multi-guidance"
   guidance:
     pretrained_model_name_or_path: "stabilityai/stable-diffusion-2-1-base"
     guidance_scale: 100.0

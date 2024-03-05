@@ -1,4 +1,4 @@
-name: "gs-sds-pc-init-naive"
+name: "gs-sds-pc-init-naive-front"
 tag: "${rmspace:${system.prompt_processor.prompt},_}"
 exp_root_dir: "outputs"
 seed: 0
@@ -17,6 +17,7 @@ data:
   rays_d_normalize: false
   num_multiview: 2
   multiview_deg: 30.0
+  front_optimize: true
 
 system_type: "gaussian-splatting-noising-system"
 system:

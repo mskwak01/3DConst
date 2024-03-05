@@ -114,6 +114,7 @@ class GaussianSplatting(BaseLift3DSystem):
         for batch_idx in range(bs):
             batch["batch_idx"] = batch_idx
             fovy = batch["fovy"][batch_idx]
+                        
             w2c, proj, cam_p = get_cam_info_gaussian(
                 c2w=batch["c2w"][batch_idx], fovx=fovy, fovy=fovy, znear=0.1, zfar=100
             )
@@ -297,22 +298,25 @@ class GaussianSplatting(BaseLift3DSystem):
                     noised_maps, loc_tensor, inter_dict = render_noised_cloud(points, batch, noise_tensor, noise_raster_settings, noise_channel, cam_radius, device, 
                                 dynamic_points=self.gaussian_dynamic, identical_noising=self.cfg.identical_noising, id_tensor=id_tensor)
                     noise_map = noised_maps
-                # elif self.cfg.cons_noise_alter != 0:
-                #     if self.global_step % self.cfg.cons_noise_alter == 1:
-                #         self.c_noise = torch.randn(6,4,64,64).to(self.device)
-                #         noise_map = self.c_noise
-                #     else:
-                #         noise_map = self.c_noise
+                    # loc_tensor = None
+                    # inter_dict = None
+                                        
+                elif self.cfg.cons_noise_alter != 0:
+                    if self.global_step % self.cfg.cons_noise_alter == 1:
+                        self.c_noise = torch.randn(6,4,64,64).to(self.device)
+                        noise_map = self.c_noise
+                    else:
+                        noise_map = self.c_noise
                         
-                #     loc_tensor = None
-                #     inter_dict = None
-                #     # fin_noise = noise_maps_tensor.permute(0,3,1,2)
+                    loc_tensor = None
+                    inter_dict = None
+                    # fin_noise = noise_maps_tensor.permute(0,3,1,2)
 
                 else:
                     noise_map = None
                     loc_tensor = None
                     inter_dict = None
-            
+                            
             guidance_inp = out["comp_rgb"]     
                                                
             guidance_out = self.guidance(

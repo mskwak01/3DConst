@@ -15,7 +15,7 @@ from threestudio.utils.ops import perpendicular_component
 from threestudio.utils.typing import *
 
 
-@threestudio.register("stable-diffusion-guidance")
+@threestudio.register("multi-guidance")
 class StableDiffusionGuidance(BaseObject):
     @dataclass
     class Config(BaseObject.Config):
@@ -190,7 +190,6 @@ class StableDiffusionGuidance(BaseObject):
         elevation: Float[Tensor, "B"],
         azimuth: Float[Tensor, "B"],
         camera_distances: Float[Tensor, "B"],
-        noise_map
     ):
         batch_size = elevation.shape[0]
 
@@ -202,10 +201,7 @@ class StableDiffusionGuidance(BaseObject):
                 elevation, azimuth, camera_distances, self.cfg.view_dependent_prompting
             )
             with torch.no_grad():
-                if noise_map is not None:
-                    noise = noise_map
-                else:
-                    noise = torch.randn_like(latents)
+                noise = torch.randn_like(latents)
                 latents_noisy = self.scheduler.add_noise(latents, noise, t)
                 latent_model_input = torch.cat([latents_noisy] * 4, dim=0)
                 noise_pred = self.forward_unet(
@@ -238,11 +234,7 @@ class StableDiffusionGuidance(BaseObject):
             # predict the noise residual with unet, NO grad!
             with torch.no_grad():
                 # add noise
-                if noise_map is not None:
-                    noise = noise_map
-                else:
-                    noise = torch.randn_like(latents)
-                
+                noise = torch.randn_like(latents)  # TODO: use torch generator
                 latents_noisy = self.scheduler.add_noise(latents, noise, t)
                 # pred noise
                 latent_model_input = torch.cat([latents_noisy] * 2, dim=0)
@@ -387,14 +379,11 @@ class StableDiffusionGuidance(BaseObject):
         azimuth: Float[Tensor, "B"],
         camera_distances: Float[Tensor, "B"],
         rgb_as_latents=False,
-        noise_map=None,
         guidance_eval=False,
-        idx_map=None,
-        inter_dict=None,
         **kwargs,
     ):
         batch_size = rgb.shape[0]
-        
+
         rgb_BCHW = rgb.permute(0, 3, 1, 2)
         latents: Float[Tensor, "B 4 64 64"]
         if rgb_as_latents:
@@ -423,7 +412,7 @@ class StableDiffusionGuidance(BaseObject):
             )
         else:
             grad, guidance_eval_utils = self.compute_grad_sds(
-                latents, t, prompt_utils, elevation, azimuth, camera_distances, noise_map
+                latents, t, prompt_utils, elevation, azimuth, camera_distances
             )
 
         grad = torch.nan_to_num(grad)

@@ -224,7 +224,7 @@ def render_noised_cloud(
         grid_y, grid_x = torch.meshgrid(torch.arange(64),torch.arange(64), indexing='ij')
         coords = torch.stack([grid_y,grid_x],dim=-1).reshape(-1,2)
         
-        loc_tensor = torch.zeros([len(idx_maps), point_loc.shape[0], 2]).long()
+        loc_tensor = torch.zeros([len(idx_maps), point_loc.shape[0], 2]).long().detach()
                 
         for num, idx_map in enumerate(idx_maps):
             tgt_idxmap = idx_map.reshape(-1)
@@ -232,7 +232,6 @@ def render_noised_cloud(
 
         # Finding Intersecting Points Indices 
         
-        runs = 0
         total_intersection = np.array([], dtype=np.int32)
         
         inter_dict = {}
@@ -248,7 +247,7 @@ def render_noised_cloud(
                 new_inter = np.intersect1d(idx_one, idx_two)
                 
                 inter_key = str(num) + str(new_num + num + 1)
-                inter_dict[inter_key] = torch.tensor(new_inter)
+                inter_dict[inter_key] = torch.tensor(new_inter).detach()
 
                 total_intersection = np.union1d(total_intersection, new_inter)
                         
@@ -277,7 +276,7 @@ def render_noised_cloud(
             
         # import pdb; pdb.set_trace()
         
-    fin_noise = noise_maps_tensor.permute(0,3,1,2)
+    fin_noise = noise_maps_tensor.permute(0,3,1,2).detach()
                             
     return fin_noise, loc_tensor, inter_dict
 
