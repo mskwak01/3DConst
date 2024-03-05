@@ -1,4 +1,4 @@
-name: "gs-sds-pc-init-con-full"
+name: "gs-sds-threefuse-con-const"
 tag: "${rmspace:${system.prompt_processor.prompt},_}"
 exp_root_dir: "outputs"
 seed: 0
@@ -18,13 +18,16 @@ data:
   num_multiview: 2
   multiview_deg: 30.0
 
+
 system_type: "gaussian-splatting-noising-system"
 system:
   image_dir: "/home/dreamer/host_files/matthew/matt_threestudio/threestudio/tower.png"
-  threefuse: false
+  threefuse: true
   three_noise: true
   identical_noising: true
   gaussian_dynamic: true
+  constant_noising: true
+  cons_noise_alter: 500
   geometry_type: "gaussian-splatting"
   calibration_value: 0
   geometry:
@@ -39,8 +42,8 @@ system:
     opacity_lr: 0.05
     scaling_lr: 0.005
     rotation_lr: 0.005
-    densification_interval: 250
-    prune_interval: 250
+    densification_interval: 50
+    prune_interval: 50
     opacity_reset_interval: 50000000
     densify_from_iter: 0
     densify_until_iter: 10000
@@ -69,35 +72,20 @@ system:
 
   prompt_processor_type: "stable-diffusion-prompt-processor"
   prompt_processor:
-    pretrained_model_name_or_path: "stabilityai/stable-diffusion-2-1-base"
+    pretrained_model_name_or_path: "runwayml/stable-diffusion-v1-5"
+    pretrained_model_name_or_path_aux: "stabilityai/stable-diffusion-2-1"
     prompt: ???
     front_threshold: 30.
     back_threshold: 30.
+    multiple_encoders: true
 
-  guidance_type: "stable-diffusion-guidance"
+  guidance_type: "threefuse-guidance"
   guidance:
-    pretrained_model_name_or_path: "stabilityai/stable-diffusion-2-1-base"
+    pretrained_model_name_or_path: "/mnt/data3/ines/threestudio/controlnet"
     guidance_scale: 100.0
     weighting_strategy: sds
     min_step_percent: 0.02
     max_step_percent: [1000, 0.98, 0.5, 1001]
-
-  # prompt_processor_type: "stable-diffusion-prompt-processor"
-  # prompt_processor:
-  #   pretrained_model_name_or_path: "runwayml/stable-diffusion-v1-5"
-  #   pretrained_model_name_or_path_aux: "stabilityai/stable-diffusion-2-1"
-  #   prompt: ???
-  #   front_threshold: 30.
-  #   back_threshold: 30.
-  #   multiple_encoders: true
-
-  # guidance_type: "threefuse-guidance"
-  # guidance:
-  #   pretrained_model_name_or_path: "/home/cvlab15/project/ines/threestudio/controlnet"
-  #   guidance_scale: 100.0
-  #   weighting_strategy: sds
-  #   min_step_percent: 0.02
-  #   max_step_percent: [2000, 0.98, 0.5, 2001]
 
   exporter_type: "gaussian-mesh-exporter"
 

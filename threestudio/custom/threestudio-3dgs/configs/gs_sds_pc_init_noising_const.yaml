@@ -1,4 +1,4 @@
-name: "gs-sds-pc-init-con-full"
+name: "gs-sds-pc-init-con-const"
 tag: "${rmspace:${system.prompt_processor.prompt},_}"
 exp_root_dir: "outputs"
 seed: 0
@@ -25,8 +25,10 @@ system:
   three_noise: true
   identical_noising: true
   gaussian_dynamic: true
+  constant_noising: true
   geometry_type: "gaussian-splatting"
   calibration_value: 0
+  cons_noise_alter: 25
   geometry:
     position_lr_init: 0.001
     position_lr_final: 0.00002
@@ -39,16 +41,16 @@ system:
     opacity_lr: 0.05
     scaling_lr: 0.005
     rotation_lr: 0.005
-    densification_interval: 250
-    prune_interval: 250
+    densification_interval: 100
+    prune_interval: 500
     opacity_reset_interval: 50000000
-    densify_from_iter: 0
+    densify_from_iter: 500
     densify_until_iter: 10000
     prune_from_iter: 1000
     prune_until_iter: ${trainer.max_steps}
     densify_grad_threshold: 0.01
     min_opac_prune: 0.005
-    split_thresh: 0.01
+    split_thresh: 0.008
     radii2d_thresh: 1000
 
     init_num_pts: 4096

@@ -15,6 +15,7 @@ from threestudio.models.materials.base import BaseMaterial
 from threestudio.models.renderers.base import Rasterizer
 from threestudio.utils.typing import *
 
+from torchvision.utils import save_image
 
 @threestudio.register("diff-gaussian-rasterizer")
 class DiffGaussian(Rasterizer):
@@ -89,8 +90,24 @@ class DiffGaussian(Rasterizer):
             prefiltered=False,
             debug=False,
         )
+        
+        raster_settings_2 = GaussianRasterizationSettings(
+            image_height=64,
+            image_width=64,
+            tanfovx=tanfovx,
+            tanfovy=tanfovy,
+            bg=bg_color,
+            scale_modifier=0.2,
+            viewmatrix=viewpoint_camera.world_view_transform,
+            projmatrix=viewpoint_camera.full_proj_transform,
+            sh_degree=pc.active_sh_degree,
+            campos=viewpoint_camera.camera_center,
+            prefiltered=False,
+            debug=False,
+        )
 
         rasterizer = GaussianRasterizer(raster_settings=raster_settings)
+        rasterizer_2 =  GaussianRasterizer(raster_settings=raster_settings_2)
 
         means3D = pc.get_xyz
         means2D = screenspace_points
@@ -121,6 +138,8 @@ class DiffGaussian(Rasterizer):
             shs = pc.get_features
         else:
             colors_precomp = override_color
+            
+        # import pdb; pdb.set_trace()
 
         # Rasterize visible Gaussians to image, obtain their radii (on screen).
         result_list = rasterizer(
@@ -133,6 +152,49 @@ class DiffGaussian(Rasterizer):
             rotations=rotations,
             cov3D_precomp=cov3D_precomp,
         )
+                
+        # var_mul = 2.5
+        
+        # with torch.no_grad():
+        
+            # colors_1 = torch.randn_like(means3D) * var_mul   
+            # colors_2 = torch.randn_like(means3D) * var_mul   
+            
+            # result_list_2 = rasterizer_2(
+            #     means3D=means3D,
+            #     means2D=means2D,
+            #     shs=None,
+            #     colors_precomp=colors_1,
+            #     opacities=torch.ones_like(opacity),
+            #     scales=scales,
+            #     rotations=rotations,
+            #     cov3D_precomp=cov3D_precomp,
+            # )
+                                
+            # result_list_3 = rasterizer_2(
+            #     means3D=means3D,
+            #     means2D=means2D,
+            #     shs=None,
+            #     colors_precomp=colors_2,
+            #     opacities=torch.ones_like(opacity),
+            #     scales=scales,
+            #     rotations=rotations,
+            #     cov3D_precomp=cov3D_precomp,
+            # )
+            
+            # result_2 = result_list_2[0].detach()
+            # result_3 = result_list_3[0].detach()
+                    
+            # mask = (result_list_2[0][0] != 0.)[None,...] * (result_list_2[0][0] != 1.)[None,...]
+            # # indexes = torch.nonzero(mask, as_tuple=False)
+            # # hello = result_list_2[0][indexes[:,0],indexes[:,1],indexes[:,2]]
+            
+            # noise_image = mask * torch.cat((result_2, result_3[2:,...]),dim=0)
+            
+            # back_noise_image = (1 - mask.float()) * torch.randn_like(noise_image)
+                
+        
+        # import pdb; pdb.set_trace()
                 
         # pseudo_feat = torch.randn_like(pc.get_rotation).to(self.device)
         
@@ -147,15 +209,12 @@ class DiffGaussian(Rasterizer):
         #     cov3D_precomp=cov3D_precomp,
         # )
         
-        
         rendered_image, radii = result_list[0], result_list[1]
         
-        # import pdb; pdb.set_trace()
-
+        noise_image = None
+        
         # rendered_noise_image, radii = result_list_2[0], result_list_2[1]
         
-        
-
         # Retain gradients of the 2D (screen-space) means for batch dim
         if self.training:
             screenspace_points.retain_grad()
@@ -168,4 +227,6 @@ class DiffGaussian(Rasterizer):
             "viewspace_points": screenspace_points,
             "visibility_filter": radii > 0,
             "radii": radii,
+            "noise_image" : noise_image,
+            # "back_noise_image": back_noise_image
         }

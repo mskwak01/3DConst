@@ -35,7 +35,7 @@ class RandomCameraDataModuleConfig:
     eval_height: int = 512
     eval_width: int = 512
     eval_batch_size: int = 1
-    n_val_views: int = 1
+    n_val_views: int = 4
     n_test_views: int = 120
     elevation_range: Tuple[float, float] = (-10, 90)
     azimuth_range: Tuple[float, float] = (-180, 180)
@@ -53,7 +53,7 @@ class RandomCameraDataModuleConfig:
     eval_camera_distance: float = 1.5
     eval_fovy_deg: float = 70.0
     light_sample_strategy: str = "dreamfusion"
-    batch_uniform_azimuth: bool = True
+    batch_uniform_azimuth: bool = False
     progressive_until: int = 0  # progressive ranges for elevation, azimuth, r, fovy
 
     rays_d_normalize: bool = True
@@ -183,12 +183,23 @@ class RandomCameraIterableDataset(IterableDataset, Updateable):
                 0
             ]
         else:
-            # simple random sampling
-            azimuth_deg = (
-                torch.rand(self.batch_size)
-                * (self.azimuth_range[1] - self.azimuth_range[0])
-                + self.azimuth_range[0]
-            )
+            draw = torch.rand(1) 
+                        
+            if draw > 0.25:
+                # simple random sampling
+                azimuth_deg = (
+                    torch.rand(self.batch_size)
+                    * (self.azimuth_range[1] - self.azimuth_range[0])
+                    + self.azimuth_range[0]
+                )
+            
+            else:
+                azimuth_deg = (
+                    torch.rand(self.batch_size)
+                    * (45. - (-45.))
+                    + self.azimuth_range[0]
+                )
+                
         azimuth = azimuth_deg * math.pi / 180
 
         # sample distances from a uniform distribution bounded by distance_range

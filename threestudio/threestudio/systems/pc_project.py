@@ -166,7 +166,7 @@ def render_depth_from_cloud(
 
 
 def render_noised_cloud(
-    points, batch, noise_tensor, noised_raster_settings, noise_channel, cam_radius, device, calibration_value = 0, dynamic_points=False, identical_noising=False
+    points, batch, noise_tensor, noised_raster_settings, noise_channel, cam_radius, device, calibration_value = 0, dynamic_points=False, identical_noising=False, id_tensor=None
 ):
     radius = cam_radius[0]
     loc_tensor = None
@@ -259,9 +259,11 @@ def render_noised_cloud(
         # brand_new_noise = True
         
         # if brand_new_noise:
-        noise_canvas = torch.zeros([point_loc.shape[0], noise_channel]).float().to(device)        
-        noise_canvas[inter_pts] = torch.randn(inter_pts.shape[0],noise_channel).to(device)
-        
+        noise_canvas = torch.zeros([point_loc.shape[0], noise_channel]).float().to(device)      
+        if id_tensor is None:  
+            noise_canvas[inter_pts] = torch.randn(inter_pts.shape[0],noise_channel).to(device)
+        else:
+            noise_canvas[inter_pts] = id_tensor[inter_pts]
         # else:
         #     noise_canvas = torch.zeros([point_loc.shape[0], noise_channel]).float().to(device)
             

@@ -1,4 +1,4 @@
-name: "gs-sds-pc-init-con-full"
+name: "gs-sds-pc-init-naive"
 tag: "${rmspace:${system.prompt_processor.prompt},_}"
 exp_root_dir: "outputs"
 seed: 0
@@ -22,9 +22,10 @@ system_type: "gaussian-splatting-noising-system"
 system:
   image_dir: "/home/dreamer/host_files/matthew/matt_threestudio/threestudio/tower.png"
   threefuse: false
-  three_noise: true
-  identical_noising: true
+  three_noise: false
+  identical_noising: false
   gaussian_dynamic: true
+  cons_noise_alter: 0
   geometry_type: "gaussian-splatting"
   calibration_value: 0
   geometry:
@@ -39,8 +40,8 @@ system:
     opacity_lr: 0.05
     scaling_lr: 0.005
     rotation_lr: 0.005
-    densification_interval: 250
-    prune_interval: 250
+    densification_interval: 500
+    prune_interval: 500
     opacity_reset_interval: 50000000
     densify_from_iter: 0
     densify_until_iter: 10000
