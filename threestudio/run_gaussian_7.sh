@@ -1,7 +1,51 @@
 
 # python launch.py --config custom/threestudio-3dgs/configs/gs_sds_pc_init_noising_full.yaml  --train --gpu 1 system.prompt_processor.prompt="a DSLR photo of an owl"  system.image_dir="/home/cvlab15/project/woojeong/naver/images/owl.jpeg" data.batch_size=1 data.num_multiview=2 data.multiview_deg=20.0 system.calibration_value=45 data.front_optimize=true
 
-python launch.py --config custom/threestudio-3dgs/configs/gs_sds_pc_init_noising_multi.yaml  --train --gpu 6 system.tag="tester" system.gradient_masking=false system.prompt_processor.prompt="a rabbit on a pancake"  system.image_dir="/home/cvlab15/project/woojeong/naver/images/rabbit-pancake.jpeg" data.batch_size=1 data.num_multiview=3 data.multiview_deg=5.0 system.calibration_value=90 data.front_optimize=false system.pts_radius=0.02
+python launch.py --config custom/threestudio-3dgs/configs/gs_sds_pc_init_naive_all.yaml  --train \
+    --gpu 7 \
+    system.tag="naive_real_fr_2_2_pts_002" \
+    system.gradient_masking=false \
+    system.prompt_processor.prompt="a rabbit on a pancake" \
+    system.image_dir="/home/cvlab15/project/woojeong/naver/images/rabbit-pancake.jpeg" \
+    data.batch_size=2 \
+    data.num_multiview=2 \
+    data.multiview_deg=20 \
+    data.front_optimize=true \
+    data.batch_uniform_azimuth=false \
+    system.calibration_value=90 \
+    system.pts_radius=0.02 \
+
+
+# python launch.py --config custom/threestudio-3dgs/configs/gs_sds_pc_init_noising_multi.yaml  --train \
+#     --gpu 7 \
+#     system.tag="tester" \
+#     system.gradient_masking=true \
+#     system.prompt_processor.prompt="a DSLR photo of an owl" \
+#     system.image_dir="/home/cvlab15/project/woojeong/naver/images/owl.jpeg" \
+#     data.batch_size=1 \
+#     data.num_multiview=5 \
+#     data.multiview_deg=65 \
+#     data.only_front=true \
+#     data.batch_uniform_azimuth=false \
+#     system.calibration_value=90 \
+#     system.pts_radius=0.02 \
+
+
+
+# python launch.py --config custom/threestudio-3dgs/configs/gs_sds_pc_init_noising_multi.yaml  --train \
+#     --gpu 7 \
+#     system.tag="tester" \
+#     system.gradient_masking=true \
+#     system.interpolated_masking=true \
+#     system.prompt_processor.prompt="a rabbit on a pancake" \
+#     system.image_dir="/home/cvlab15/project/woojeong/naver/images/rabbit-pancake.jpeg" \
+#     data.batch_size=1 \
+#     data.num_multiview=5 \
+#     data.multiview_deg=65 \
+#     data.only_front=true \
+#     data.batch_uniform_azimuth=false \
+#     system.calibration_value=90 \
+#     system.pts_radius=0.02 \
 
 
 

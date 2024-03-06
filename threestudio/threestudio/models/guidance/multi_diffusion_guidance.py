@@ -437,6 +437,8 @@ class StableDiffusionGuidance(BaseObject):
         
         grad_setting = "multidiffusion"
         
+        import pdb; pdb.set_trace()
+        
         if grad_setting == "multidiffusion":
         
             for num, predicted_grad in enumerate(noise_pred):
@@ -458,6 +460,8 @@ class StableDiffusionGuidance(BaseObject):
                                 
                     value[k, :, real_loc_y[k], real_loc_x[k]] += predicted_grad[:, real_loc_y[num], real_loc_x[num]] 
                     count[k, :, real_loc_y[k], real_loc_x[k]] += 1.
+                
+        
                 
         elif grad_setting == "consistency_mask":
             

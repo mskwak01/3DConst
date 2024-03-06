@@ -234,8 +234,8 @@ class PromptProcessor(BaseObject):
         negative_prompt: str = ""
         pretrained_model_name_or_path: str = "runwayml/stable-diffusion-v1-5"
         overhead_threshold: float = 60.0
-        front_threshold: float = 45.0
-        back_threshold: float = 45.0
+        front_threshold: float = 30.0
+        back_threshold: float = 50.0
         view_dependent_prompt_front: bool = False
         use_cache: bool = True
         spawn: bool = True

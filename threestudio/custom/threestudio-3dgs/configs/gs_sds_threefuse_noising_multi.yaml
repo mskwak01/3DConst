@@ -74,7 +74,7 @@ system:
     pretrained_model_name_or_path_aux: "stabilityai/stable-diffusion-2-1"
     prompt: ???
     front_threshold: 30.
-    back_threshold: 30.
+    back_threshold: 45.
     multiple_encoders: true
 
   guidance_type: "threefuse-multi-guidance"

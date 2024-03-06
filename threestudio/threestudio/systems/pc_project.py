@@ -15,6 +15,8 @@ from threestudio.systems.pytorch3d.renderer import (
     AlphaCompositor,
     look_at_view_transform,
 )
+# from threestudio.systems.pytorch3d.renderer import PointsRasterizationSettings
+
 
 # threestudio.systems.pytorch3d.structures
 
@@ -161,12 +163,17 @@ def render_depth_from_cloud(
         depth_maps.append(depth_map)
     
     depth_maps_tensor = torch.stack(depth_maps)
+    
+    ##############
+    # mask = (depth_maps_tensor[4] > 0.4)
+    
+    # import pdb; pdb.set_trace()
 
     return depth_maps_tensor
 
 
 def render_noised_cloud(
-    points, batch, noise_tensor, noised_raster_settings, noise_channel, cam_radius, device, calibration_value = 0, dynamic_points=False, identical_noising=False, id_tensor=None, gradient_masking=False
+    points, batch, noise_tensor, noised_raster_settings, surface_raster_settings, noise_channel, cam_radius, device, calibration_value = 0, dynamic_points=False, identical_noising=False, id_tensor=None, gradient_masking=False, diff_threshold=0.3
 ):
     radius = cam_radius[0]
     loc_tensor = None
@@ -203,30 +210,67 @@ def render_noised_cloud(
     raw_noise_maps = []
     idx_maps = []
     raw_depth_masks = []
+    depth_maps = []
     
+    raw_depth = []
     # interpolated_mask = True
     
     for camera in cameras:
         noise_map, raw_depth_map, idx_map = pointcloud_renderer(point_cloud, camera, noised_raster_settings, device, return_idx=True)
+        _, smooth_depth_map, _ = pointcloud_renderer(point_cloud, camera, surface_raster_settings, device, return_idx=True)
+        # Depth map location
         
-        depth_mask = 1 - (raw_depth_map < 0).float()
+        # Raw depth
         
-        # if interpolated_mask:
-        #     import pdb; pdb.set_trace()
+        disparity = camera.focal_length[0, 0] / (raw_depth_map + 1e-9)
+
+        max_disp = torch.max(disparity)
+        min_disp = torch.min(disparity[disparity > 0])
+
+        norm_disparity = (disparity - min_disp) / (max_disp - min_disp)
         
-        raw_depth_masks.append(depth_mask)
-        raw_noise_maps.append(noise_map)
+        ori_mask = (norm_disparity > 0).float()
+        # norm_disparity = ori_mask * norm_disparity
         
-        # import pdb; pdb.set_trace()
+        raw_depth.append(norm_disparity)
+
+        ###########
+        
+        smooth_disparity = camera.focal_length[0, 0] / (smooth_depth_map + 1e-9)
+
+        sm_max_disp = torch.max(smooth_disparity)
+        sm_min_disp = torch.min(smooth_disparity[smooth_disparity > 0])
+
+        smooth_norm_disparity = (smooth_disparity - sm_min_disp) / (sm_max_disp - sm_min_disp)
+        # smooth_mask = (smooth_norm_disparity > 0.)
+        # smooth_norm_disparity = smooth_mask * smooth_norm_disparity 
+        
+        differences = smooth_norm_disparity - norm_disparity
+        
+        diff_mask = (differences < 0.2).float()
+        
+        ultimate_mask = ori_mask * diff_mask
+        
+        mask = ultimate_mask
+        
+        fin_disparity = norm_disparity * mask
+        depth_mask = mask.float()
+        
+        depth_map = fin_disparity.permute(2,0,1).detach()
+                
+        depth_maps.append(depth_map)
+        
+        masked_idx = torch.clamp(idx_map - 1e7 * ( 1 - depth_mask ), min=-1, max=None)
     
         background_noise = (1 - depth_mask) * torch.randn(64, 64, noise_channel).to(device)
-        final_noise = noise_map[0] + background_noise
+        final_noise = noise_map[0] * depth_mask + background_noise
         
+        raw_depth_masks.append(depth_mask.permute(2,0,1).detach())
         noise_maps.append(final_noise[None,...])
-        idx_maps.append(idx_map)
+        idx_maps.append(masked_idx.long())
     
     noise_maps_tensor = torch.stack(noise_maps).squeeze()
-    depth_masks = torch.stack(raw_depth_masks).permute(0,3,1,2).detach()
+    depth_masks = torch.stack(raw_depth_masks).detach()
         
     if identical_noising:
         
@@ -247,22 +291,46 @@ def render_noised_cloud(
         
         inter_dict = {}
         
-        for num, tgt_idx_map in enumerate(idx_maps):
-            
-            other_list = idx_maps[num + 1:]
-            idx_one = tgt_idx_map.reshape(-1,1).detach().cpu().numpy()
-
-            for new_num, other_idx_map in enumerate(other_list):
+        viewcomp_setting = "all_views"
                 
-                idx_two = other_idx_map.reshape(-1,1).detach().cpu().numpy()
+        if viewcomp_setting == "all_views":
+        
+            for num, tgt_idx_map in enumerate(idx_maps):
+                
+                other_list = idx_maps[num + 1:]
+                idx_one = tgt_idx_map.reshape(-1,1).detach().cpu().numpy()
+
+                for new_num, other_idx_map in enumerate(other_list):
+                    
+                    idx_two = other_idx_map.reshape(-1,1).detach().cpu().numpy()
+                    new_inter = np.intersect1d(idx_one, idx_two)
+                    
+                    inter_key = str(num) + str(new_num + num + 1)
+                    inter_dict[inter_key] = torch.tensor(new_inter).detach()
+
+                    total_intersection = np.union1d(total_intersection, new_inter)
+                            
+            inter_pts = torch.tensor(total_intersection)
+                    
+        elif viewcomp_setting == "penta":
+                                    
+            keys = [[0,1], [0,2], [1,3], [2,4], [5,3], [5,4]]
+            
+            for view_pair in keys:
+                
+                idx_one = idx_maps[view_pair[0]].reshape(-1,1).detach().cpu().numpy()
+                idx_two = idx_maps[view_pair[1]].reshape(-1,1).detach().cpu().numpy()
+                
                 new_inter = np.intersect1d(idx_one, idx_two)
                 
-                inter_key = str(num) + str(new_num + num + 1)
+                inter_key = str(view_pair[0]) + str(view_pair[1])
                 inter_dict[inter_key] = torch.tensor(new_inter).detach()
-
+                
                 total_intersection = np.union1d(total_intersection, new_inter)
-                        
-        inter_pts = torch.tensor(total_intersection)
+            
+            inter_pts = torch.tensor(total_intersection)
+                
+        # import pdb; pdb.set_trace()
 
         # Constant Noising for Intersecting Points
         

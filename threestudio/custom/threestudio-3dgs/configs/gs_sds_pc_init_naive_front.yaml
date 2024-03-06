@@ -50,7 +50,7 @@ system:
     prune_until_iter: ${trainer.max_steps}
     densify_grad_threshold: 0.01
     min_opac_prune: 0.005
-    split_thresh: 0.01
+    split_thresh: 0.008
     radii2d_thresh: 1000
 
     init_num_pts: 4096

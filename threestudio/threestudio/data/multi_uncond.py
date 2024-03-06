@@ -53,11 +53,13 @@ class RandomCameraDataModuleConfig:
     eval_camera_distance: float = 1.5
     eval_fovy_deg: float = 70.0
     light_sample_strategy: str = "dreamfusion"
-    batch_uniform_azimuth: bool = False
+    batch_uniform_azimuth: bool = True
     progressive_until: int = 0  # progressive ranges for elevation, azimuth, r, fovy
     
     num_multiview: int = 0
     multiview_deg: float = 30.0
+    
+    only_front: bool = False
     
     front_optimize: bool = False  # progressive ranges for elevation, azimuth, r, fovy
     rays_d_normalize: bool = True
@@ -192,6 +194,13 @@ class RandomCameraIterableDataset(IterableDataset, Updateable):
             ) + self.azimuth_range[
                 0
             ]
+        elif self.cfg.only_front:
+            azimuth_deg = (
+                torch.rand(self.batch_size)
+                * (25. - (-25.))
+                + (-25)
+            )
+            
         else:
             draw = torch.rand(1) 
             
