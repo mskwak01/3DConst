@@ -451,7 +451,6 @@ class StableDiffusionGuidance(BaseObject):
             latents, t, prompt_utils, depth_map, elevation, azimuth, camera_distances, noise_map
         )
         
-        
         noise_pred = guidance_eval_utils["noise_pred"] 
          
         value = torch.zeros_like(latents)

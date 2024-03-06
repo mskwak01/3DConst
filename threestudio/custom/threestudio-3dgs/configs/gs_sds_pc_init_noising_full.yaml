@@ -1,5 +1,5 @@
 name: "gs-sds-pc-init-noising-full"
-tag: "${rmspace:${system.prompt_processor.prompt},_}"
+tag: "${rmspace:${system.prompt_processor.prompt},_}_${system.tag}"
 exp_root_dir: "outputs"
 seed: 0
 
@@ -9,7 +9,7 @@ data:
   width: 512
   height: 512
   camera_distance_range: [1.4, 1.4]
-  fovy_range: [60, 70]
+  fovy_range: [70, 70]
   elevation_range: [0, 90]
   light_sample_strategy: "dreamfusion"
   eval_camera_distance: 1.4
@@ -28,6 +28,7 @@ system:
   gaussian_dynamic: true
   geometry_type: "gaussian-splatting"
   calibration_value: 0
+  pts_radius: 0.02
   geometry:
     position_lr_init: 0.001
     position_lr_final: 0.00002
@@ -40,8 +41,8 @@ system:
     opacity_lr: 0.05
     scaling_lr: 0.005
     rotation_lr: 0.005
-    densification_interval: 500
-    prune_interval: 500
+    densification_interval: 250
+    prune_interval: 250
     opacity_reset_interval: 50000000
     densify_from_iter: 0
     densify_until_iter: 10000
@@ -49,7 +50,7 @@ system:
     prune_until_iter: ${trainer.max_steps}
     densify_grad_threshold: 0.01
     min_opac_prune: 0.005
-    split_thresh: 0.01
+    split_thresh: 0.008
     radii2d_thresh: 1000
 
     init_num_pts: 4096

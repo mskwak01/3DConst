@@ -196,7 +196,7 @@ class RandomCameraIterableDataset(IterableDataset, Updateable):
             draw = torch.rand(1) 
             
             if self.cfg.front_optimize:                        
-                if draw < 0.25:
+                if draw < 0.5:
                     # simple random sampling
                     azimuth_deg = (  
                         torch.rand(self.batch_size)

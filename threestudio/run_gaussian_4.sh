@@ -1,10 +1,22 @@
 
 
+python launch.py --config custom/threestudio-3dgs/configs/gs_sds_pc_init_noising_full.yaml  --train --gpu 4 system.tag="tester_fr_view_2_2_pts_002_interp_masking" system.gradient_masking=true system.prompt_processor.prompt="a rabbit on a pancake"  system.image_dir="/home/cvlab15/project/woojeong/naver/images/rabbit-pancake.jpeg" data.batch_size=2 data.num_multiview=2 data.multiview_deg=20.0 system.calibration_value=90 data.front_optimize=true system.pts_radius=0.02
+
+
+# python launch.py --config custom/threestudio-3dgs/configs/gs_sds_pc_init_naive_all.yaml  --train --gpu 4 system.prompt_processor.prompt="a full body of a cat wearing a hat"  system.image_dir="/home/cvlab15/project/woojeong/naver/images/cat-hat.png" data.batch_size=4 data.num_multiview=0 data.multiview_deg=20.0 system.calibration_value=135 data.front_optimize=false 
+
+
 # python launch.py --config custom/threestudio-3dgs/configs/gs_sds_pc_init_naive.yaml  --train --gpu 5 system.prompt_processor.prompt="a rabbit on a pancake"  system.image_dir="/home/cvlab15/project/woojeong/naver/images/rabbit-pancake.jpeg" data.batch_size=6 data.num_multiview=0 data.multiview_deg=20.0 system.calibration_value=90
 
-python launch.py --config custom/threestudio-3dgs/configs/gs_sds_pc_init_noising_full.yaml  --train --gpu 4 system.prompt_processor.prompt="a rabbit on a pancake"  system.image_dir="/home/cvlab15/project/woojeong/naver/images/rabbit-pancake.jpeg" data.batch_size=1 data.num_multiview=2 data.multiview_deg=20.0 system.calibration_value=90 data.front_optimize=true
-python launch.py --config custom/threestudio-3dgs/configs/gs_sds_pc_init_noising_full.yaml  --train --gpu 4 system.prompt_processor.prompt="a full body of a cat wearing a hat"  system.image_dir="/home/cvlab15/project/woojeong/naver/images/cat-hat.png" data.batch_size=1 data.num_multiview=2 data.multiview_deg=20.0 system.calibration_value=135 data.front_optimize=true
-python launch.py --config custom/threestudio-3dgs/configs/gs_sds_pc_init_noising_full.yaml  --train --gpu 4 system.prompt_processor.prompt="a DSLR photo of an owl"  system.image_dir="/home/cvlab15/project/woojeong/naver/images/owl.jpeg" data.batch_size=1 data.num_multiview=2 data.multiview_deg=20.0 system.calibration_value=45 data.front_optimize=true
+
+# prune, densify 250
+# python launch.py --config custom/threestudio-3dgs/configs/gs_sds_pc_init_noising_const.yaml  --train --gpu 4 system.prompt_processor.prompt="a rabbit on a pancake"  system.image_dir="/home/cvlab15/project/woojeong/naver/images/rabbit-pancake.jpeg" data.batch_size=4 data.num_multiview=0 data.multiview_deg=20.0 system.calibration_value=90 data.front_optimize=false  system.cons_noise_alter=25 system.pts_radius=0.02
+# python launch.py --config custom/threestudio-3dgs/configs/gs_sds_pc_init_noising_const.yaml  --train --gpu 4 system.prompt_processor.prompt="a rabbit on a pancake"  system.image_dir="/home/cvlab15/project/woojeong/naver/images/rabbit-pancake.jpeg" data.batch_size=4 data.num_multiview=0 data.multiview_deg=20.0 system.calibration_value=90 data.front_optimize=false  system.cons_noise_alter=100 system.pts_radius=0.02 
+# python launch.py --config custom/threestudio-3dgs/configs/gs_sds_pc_init_noising_const.yaml  --train --gpu 4 system.prompt_processor.prompt="a rabbit on a pancake"  system.image_dir="/home/cvlab15/project/woojeong/naver/images/rabbit-pancake.jpeg" data.batch_size=4 data.num_multiview=0 data.multiview_deg=20.0 system.calibration_value=90 data.front_optimize=false  system.cons_noise_alter=50 system.pts_radius=0.02
+
+
+# python launch.py --config custom/threestudio-3dgs/configs/gs_sds_pc_init_noising_full.yaml  --train --gpu 4 system.prompt_processor.prompt="a full body of a cat wearing a hat"  system.image_dir="/home/cvlab15/project/woojeong/naver/images/cat-hat.png" data.batch_size=4 data.num_multiview=0 data.multiview_deg=20.0 system.calibration_value=135 data.front_optimize=false  
+# python launch.py --config custom/threestudio-3dgs/configs/gs_sds_pc_init_noising_full.yaml  --train --gpu 4 system.prompt_processor.prompt="a DSLR photo of an owl"  system.image_dir="/home/cvlab15/project/woojeong/naver/images/owl.jpeg" data.batch_size=4 data.num_multiview=0 data.multiview_deg=20.0 system.calibration_value=45 data.front_optimize=false  
 
 # python launch.py --config custom/threestudio-3dgs/configs/gs_sds_pc_init_noising_full.yaml  --train --gpu 6 system.prompt_processor.prompt="a rabbit on a pancake"  system.image_dir="/home/cvlab15/project/woojeong/naver/images/rabbit-pancake.jpeg" data.batch_size=3 data.num_multiview=0 data.multiview_deg=20.0 system.calibration_value=90 data.front_optimize=false
 

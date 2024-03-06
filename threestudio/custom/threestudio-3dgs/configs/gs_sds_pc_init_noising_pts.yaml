@@ -1,5 +1,5 @@
 name: "gs-sds-pc-init-con-pts"
-tag: "${rmspace:${system.prompt_processor.prompt},_}"
+tag: "${rmspace:${system.prompt_processor.prompt},_}_${system.tag}"
 exp_root_dir: "outputs"
 seed: 0
 

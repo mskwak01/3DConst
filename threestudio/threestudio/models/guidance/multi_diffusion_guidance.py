@@ -15,7 +15,7 @@ from threestudio.utils.ops import perpendicular_component
 from threestudio.utils.typing import *
 
 
-@threestudio.register("multi-guidance")
+@threestudio.register("multi-diffusion-guidance")
 class StableDiffusionGuidance(BaseObject):
     @dataclass
     class Config(BaseObject.Config):
@@ -190,6 +190,7 @@ class StableDiffusionGuidance(BaseObject):
         elevation: Float[Tensor, "B"],
         azimuth: Float[Tensor, "B"],
         camera_distances: Float[Tensor, "B"],
+        noise_map
     ):
         batch_size = elevation.shape[0]
 
@@ -201,7 +202,10 @@ class StableDiffusionGuidance(BaseObject):
                 elevation, azimuth, camera_distances, self.cfg.view_dependent_prompting
             )
             with torch.no_grad():
-                noise = torch.randn_like(latents)
+                if noise_map is not None:
+                    noise = noise_map
+                else:
+                    noise = torch.randn_like(latents)
                 latents_noisy = self.scheduler.add_noise(latents, noise, t)
                 latent_model_input = torch.cat([latents_noisy] * 4, dim=0)
                 noise_pred = self.forward_unet(
@@ -234,7 +238,11 @@ class StableDiffusionGuidance(BaseObject):
             # predict the noise residual with unet, NO grad!
             with torch.no_grad():
                 # add noise
-                noise = torch.randn_like(latents)  # TODO: use torch generator
+                if noise_map is not None:
+                    noise = noise_map
+                else:
+                    noise = torch.randn_like(latents)
+                
                 latents_noisy = self.scheduler.add_noise(latents, noise, t)
                 # pred noise
                 latent_model_input = torch.cat([latents_noisy] * 2, dim=0)
@@ -379,11 +387,15 @@ class StableDiffusionGuidance(BaseObject):
         azimuth: Float[Tensor, "B"],
         camera_distances: Float[Tensor, "B"],
         rgb_as_latents=False,
+        noise_map=None,
         guidance_eval=False,
+        idx_map=None,
+        inter_dict=None,
+        depth_masks=None,
         **kwargs,
     ):
         batch_size = rgb.shape[0]
-
+        
         rgb_BCHW = rgb.permute(0, 3, 1, 2)
         latents: Float[Tensor, "B 4 64 64"]
         if rgb_as_latents:
@@ -412,10 +424,94 @@ class StableDiffusionGuidance(BaseObject):
             )
         else:
             grad, guidance_eval_utils = self.compute_grad_sds(
-                latents, t, prompt_utils, elevation, azimuth, camera_distances
+                latents, t, prompt_utils, elevation, azimuth, camera_distances, noise_map
             )
+            
+        noise_pred = guidance_eval_utils["noise_pred"]    
+            
+        value = torch.zeros_like(latents)
+        count = torch.zeros_like(latents)
+                
+        loc_y = idx_map[:,:,0]
+        loc_x = idx_map[:,:,1]
+        
+        grad_setting = "multidiffusion"
+        
+        if grad_setting == "multidiffusion":
+        
+            for num, predicted_grad in enumerate(noise_pred):
+                
+                # This tensor
+                batch_list = [i for i in range(batch_size)]
+                other_batch = batch_list[:num] + batch_list[num +1:]
+                
+                value[num] += predicted_grad
+                count[num] += 1.
+                            
+                for k in other_batch:
+                    
+                    nums, _ = torch.sort(torch.tensor([num,k]))
+                    intersection = inter_dict[str(int(nums[0])) + str(int(nums[1]))]
+                    
+                    real_loc_y = loc_y[:, intersection] 
+                    real_loc_x = loc_x[:, intersection]
+                                
+                    value[k, :, real_loc_y[k], real_loc_x[k]] += predicted_grad[:, real_loc_y[num], real_loc_x[num]] 
+                    count[k, :, real_loc_y[k], real_loc_x[k]] += 1.
+                
+        elif grad_setting == "consistency_mask":
+            
+            cons_mask_dict = {}
+            
+            for num, src_grad in enumerate(noise_pred):
+                
+                # This tensor
+                batch_list = [i for i in range(batch_size)]
+                other_batch = batch_list[:num] + batch_list[num +1:]
+                
+                # value[num] += predicted_grad
+                # count[num] += 1.
+                            
+                for k in other_batch:
+                    
+                    
+                    tgt_grad = noise_pred[k]
+                    
+                    tgt_tensor = torch.zeros_like(tgt_grad)
+                    src_tensor = torch.zeros_like(tgt_grad)
+
+                    
+                    str(num) + str(k)
+                    
+                    # noise_pred
+                    
+                    nums, _ = torch.sort(torch.tensor([num,k]))
+                    intersection = inter_dict[str(int(nums[0])) + str(int(nums[1]))]
+                    
+                    real_loc_y = loc_y[:, intersection] 
+                    real_loc_x = loc_x[:, intersection]
+                    
+                    tgt_idx_grad = tgt_grad[:, real_loc_y[k], real_loc_x[k]] 
+                    src_idx_grad = src_grad[:, real_loc_y[num], real_loc_x[num]] 
+                    
+                    
+                                
+                    # value[k, :, real_loc_y[k], real_loc_x[k]] += predicted_grad[:, real_loc_y[num], real_loc_x[num]] 
+                    # count[k, :, real_loc_y[k], real_loc_x[k]] += 1.
+                
+                
+        
+                    
+        w = (1 - self.alphas[t]).view(-1, 1, 1, 1)
+
+        pred_grad_whole = torch.where(count > 0, value / count, value)
+
+        grad = w * (pred_grad_whole - noise_map)
 
         grad = torch.nan_to_num(grad)
+        
+        import pdb; pdb.set_trace()
+        
         # clip grad for stable training?
         if self.grad_clip_val is not None:
             grad = grad.clamp(-self.grad_clip_val, self.grad_clip_val)
@@ -423,6 +519,13 @@ class StableDiffusionGuidance(BaseObject):
         # loss = SpecifyGradient.apply(latents, grad)
         # SpecifyGradient is not straghtforward, use a reparameterization trick instead
         target = (latents - grad).detach()
+        
+        if depth_masks is not None:
+            # import pdb; pdb.set_trace()
+            latents = depth_masks * latents
+            target = depth_masks * target
+            # import pdb; pdb.set_trace()
+            
         # d(loss)/d(latents) = latents - target = latents - (latents - grad) = grad
         loss_sds = 0.5 * F.mse_loss(latents, target, reduction="sum") / batch_size
 

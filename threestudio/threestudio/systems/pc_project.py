@@ -166,7 +166,7 @@ def render_depth_from_cloud(
 
 
 def render_noised_cloud(
-    points, batch, noise_tensor, noised_raster_settings, noise_channel, cam_radius, device, calibration_value = 0, dynamic_points=False, identical_noising=False, id_tensor=None
+    points, batch, noise_tensor, noised_raster_settings, noise_channel, cam_radius, device, calibration_value = 0, dynamic_points=False, identical_noising=False, id_tensor=None, gradient_masking=False
 ):
     radius = cam_radius[0]
     loc_tensor = None
@@ -202,20 +202,31 @@ def render_noised_cloud(
     noise_maps = []
     raw_noise_maps = []
     idx_maps = []
+    raw_depth_masks = []
+    
+    # interpolated_mask = True
     
     for camera in cameras:
         noise_map, raw_depth_map, idx_map = pointcloud_renderer(point_cloud, camera, noised_raster_settings, device, return_idx=True)
+        
+        depth_mask = 1 - (raw_depth_map < 0).float()
+        
+        # if interpolated_mask:
+        #     import pdb; pdb.set_trace()
+        
+        raw_depth_masks.append(depth_mask)
         raw_noise_maps.append(noise_map)
         
         # import pdb; pdb.set_trace()
     
-        background_noise = (raw_depth_map < 0) * torch.randn(raw_depth_map.shape[0],raw_depth_map.shape[1], noise_channel).to(device)
+        background_noise = (1 - depth_mask) * torch.randn(64, 64, noise_channel).to(device)
         final_noise = noise_map[0] + background_noise
         
         noise_maps.append(final_noise[None,...])
         idx_maps.append(idx_map)
     
     noise_maps_tensor = torch.stack(noise_maps).squeeze()
+    depth_masks = torch.stack(raw_depth_masks).permute(0,3,1,2).detach()
         
     if identical_noising:
         
@@ -278,7 +289,7 @@ def render_noised_cloud(
         
     fin_noise = noise_maps_tensor.permute(0,3,1,2).detach()
                             
-    return fin_noise, loc_tensor, inter_dict
+    return fin_noise, loc_tensor, inter_dict, depth_masks
 
 
 def py3d_camera(radius, elevations, horizontals, FoV, device, img_size=800):

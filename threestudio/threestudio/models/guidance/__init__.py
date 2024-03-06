@@ -11,5 +11,5 @@ from . import (
     threefuse_vsd_guidance,
     threefuse_multi_guidance,
     threefuse_guidance,
-    multi_guidance
+    multi_diffusion_guidance
 )

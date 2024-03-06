@@ -1,5 +1,5 @@
 name: "gs-sds-pc-init-noising-full"
-tag: "${rmspace:${system.prompt_processor.prompt},_}"
+tag: "${rmspace:${system.prompt_processor.prompt},_}_${system.tag}"
 exp_root_dir: "outputs"
 seed: 0
 
@@ -17,7 +17,7 @@ data:
   rays_d_normalize: false
   num_multiview: 2
   multiview_deg: 30.0
-  front_optimize: true
+  front_optimize: false
 
 system_type: "gaussian-splatting-noising-system"
 system:
@@ -75,7 +75,7 @@ system:
     front_threshold: 30.
     back_threshold: 30.
 
-  guidance_type: "multi-guidance"
+  guidance_type: "multi-diffusion-guidance"
   guidance:
     pretrained_model_name_or_path: "stabilityai/stable-diffusion-2-1-base"
     guidance_scale: 100.0
