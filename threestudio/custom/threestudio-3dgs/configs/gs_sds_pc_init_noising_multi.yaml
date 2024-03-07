@@ -1,11 +1,11 @@
-name: "gs-sds-pc-init-noising-full"
+name: "gs-sds-pc-init-noising-multi"
 tag: "${rmspace:${system.prompt_processor.prompt},_}_${system.tag}"
 exp_root_dir: "outputs"
 seed: 0
 
 data_type: "random-multiview-datamodule"
 data:
-  batch_size: 2
+  batch_size: 1
   width: 512
   height: 512
   camera_distance_range: [1.4, 1.4]
@@ -15,9 +15,9 @@ data:
   eval_camera_distance: 1.4
   eval_fovy_deg: 70
   rays_d_normalize: false
-  num_multiview: 2
-  multiview_deg: 30.0
-  front_optimize: false
+  num_multiview: 5
+  multiview_deg: 60.0
+  only_front: true
 
 system_type: "gaussian-splatting-noising-system"
 system:
@@ -26,6 +26,7 @@ system:
   three_noise: true
   identical_noising: true
   gaussian_dynamic: true
+  nearby_fusing: true
   geometry_type: "gaussian-splatting"
   calibration_value: 0
   geometry:

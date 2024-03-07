@@ -185,7 +185,14 @@ class RandomCameraIterableDataset(IterableDataset, Updateable):
 
         # sample azimuth angles from a uniform distribution bounded by azimuth_range
         azimuth_deg: Float[Tensor, "B"]
-        if self.cfg.batch_uniform_azimuth:
+        if self.cfg.only_front:
+            azimuth_deg = (
+                torch.rand(self.batch_size)
+                * (25. - (-25.))
+                + (-25)
+            )
+            
+        elif self.cfg.batch_uniform_azimuth:
             # ensures sampled azimuth angles in a batch cover the whole range
             azimuth_deg = (
                 torch.rand(self.batch_size) + torch.arange(self.batch_size)
@@ -194,13 +201,7 @@ class RandomCameraIterableDataset(IterableDataset, Updateable):
             ) + self.azimuth_range[
                 0
             ]
-        elif self.cfg.only_front:
-            azimuth_deg = (
-                torch.rand(self.batch_size)
-                * (25. - (-25.))
-                + (-25)
-            )
-            
+
         else:
             draw = torch.rand(1) 
             

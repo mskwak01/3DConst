@@ -40,6 +40,7 @@ class GaussianSplatting(BaseLift3DSystem):
         pts_radius: float = 0.02
         tag: str = "no_tag"
         gradient_masking: bool = False
+        nearby_fusing: bool = False
 
     cfg: Config
 
@@ -70,6 +71,15 @@ class GaussianSplatting(BaseLift3DSystem):
         
         # Point-e initialization
         # if self.threefuse is True:
+        
+        # canvas = torch.zeros(1,512,512)
+        # canvas[0,20,430] = 1.
+        # canvas[0,420,230] = 1.
+        # canvas[0,154,433] = 1.
+        # canvas[0,254,500] = 1.
+        
+        
+        # import pdb; pdb.set_trace()
             
         self.cond_pc = point_e(device="cuda", exp_dir=self.image_dir)
         self.calibration_value = self.cfg.calibration_value
@@ -164,16 +174,15 @@ class GaussianSplatting(BaseLift3DSystem):
         
         raster_settings = PointsRasterizationSettings(
                 image_size= 800,
-                radius = 0.02,
+                radius = 0.005,
                 points_per_pixel = 2
             )
         
         cam_radius = batch["camera_distances"]
-        
+                   
+        depth_maps = render_depth_from_cloud(points, batch, raster_settings, cam_radius, device, dynamic_points=self.gaussian_dynamic)
         
         # import pdb; pdb.set_trace()
-                        
-        depth_maps = render_depth_from_cloud(points, batch, raster_settings, cam_radius, device, dynamic_points=self.gaussian_dynamic)
         
         depth_map = depth_maps.permute(0, 2, 3, 1).detach()
         
@@ -314,8 +323,14 @@ class GaussianSplatting(BaseLift3DSystem):
                 ############
     
                 if self.three_noise:
+                    
+                    if self.cfg.nearby_fusing:
+                        viewcomp_setting = "penta"
+                    else:
+                        viewcomp_setting = "all_views"
+                    
                     noised_maps, loc_tensor, inter_dict, depth_masks = render_noised_cloud(points, batch, noise_tensor, noise_raster_settings, surface_raster_settings, noise_channel, cam_radius, device, 
-                                dynamic_points=self.gaussian_dynamic, identical_noising=self.cfg.identical_noising, id_tensor=id_tensor)
+                                dynamic_points=self.gaussian_dynamic, identical_noising=self.cfg.identical_noising, id_tensor=id_tensor, viewcomp_setting=viewcomp_setting)
                     noise_map = noised_maps
                     # loc_tensor = None
                     # inter_dict = None
@@ -343,11 +358,17 @@ class GaussianSplatting(BaseLift3DSystem):
             
             # import pdb; pdb.set_trace()
                             
-            guidance_inp = out["comp_rgb"]     
+            guidance_inp = out["comp_rgb"]  
+            
+            if self.cfg.nearby_fusing:
+                grad_setting = "penta"
+            
+            else:
+                grad_setting = "after"
                                                
             guidance_out = self.guidance(
                 guidance_inp, self.prompt_utils, **batch, noise_map=noise_map, rgb_as_latents=False, 
-                idx_map=loc_tensor, inter_dict=inter_dict, depth_masks=depth_masks,
+                idx_map=loc_tensor, inter_dict=inter_dict, depth_masks=depth_masks, grad_setting=grad_setting
             )        
 
 
@@ -376,6 +397,7 @@ class GaussianSplatting(BaseLift3DSystem):
                 )
 
         xyz_mean = None
+        
         if self.cfg.loss["lambda_position"] > 0.0:
             xyz_mean = self.geometry.get_xyz.norm(dim=-1)
             loss_position = xyz_mean.mean()
@@ -412,6 +434,8 @@ class GaussianSplatting(BaseLift3DSystem):
             )
             self.log(f"train/loss_depth_tv", loss_depth_tv)
             loss += loss_depth_tv
+
+        # import pdb; pdb.set_trace()
 
         for name, value in self.cfg.loss.items():
             self.log(f"train_params/{name}", self.C(value))

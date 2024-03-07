@@ -41,8 +41,8 @@ system:
     opacity_lr: 0.05
     scaling_lr: 0.005
     rotation_lr: 0.005
-    densification_interval: 500
-    prune_interval: 500
+    densification_interval: 300
+    prune_interval: 300
     opacity_reset_interval: 50000000
     densify_from_iter: 0
     densify_until_iter: 10000
@@ -50,12 +50,12 @@ system:
     prune_until_iter: ${trainer.max_steps}
     densify_grad_threshold: 0.01
     min_opac_prune: 0.005
-    split_thresh: 0.008
+    split_thresh: 0.007
     radii2d_thresh: 1000
 
     init_num_pts: 4096
     pc_init_radius: 0.8
-    opacity_init: 0.2
+    opacity_init: 0.3
 
   renderer_type: "diff-gaussian-rasterizer"
   renderer:

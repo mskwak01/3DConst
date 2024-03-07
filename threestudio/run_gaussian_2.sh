@@ -1,7 +1,7 @@
 
 python launch.py --config custom/threestudio-3dgs/configs/gs_sds_pc_init_noising_full.yaml  --train \
     --gpu 2 \
-    system.tag="finmask_view_fr_2_2_pts_002" \
+    system.tag="finmask_view_fr_2_2_pts_002_0008_op003_int400" \
     system.gradient_masking=true \
     system.prompt_processor.prompt="a DSLR photo of an owl" \
     system.image_dir="/home/cvlab15/project/woojeong/naver/images/owl.jpeg" \

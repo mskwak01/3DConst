@@ -173,7 +173,9 @@ def render_depth_from_cloud(
 
 
 def render_noised_cloud(
-    points, batch, noise_tensor, noised_raster_settings, surface_raster_settings, noise_channel, cam_radius, device, calibration_value = 0, dynamic_points=False, identical_noising=False, id_tensor=None, gradient_masking=False, diff_threshold=0.3
+    points, batch, noise_tensor, noised_raster_settings, surface_raster_settings, noise_channel, cam_radius, device, 
+    calibration_value = 0, dynamic_points=False, identical_noising=False, id_tensor=None, 
+    viewcomp_setting="all_views"
 ):
     radius = cam_radius[0]
     loc_tensor = None
@@ -290,9 +292,7 @@ def render_noised_cloud(
         total_intersection = np.array([], dtype=np.int32)
         
         inter_dict = {}
-        
-        viewcomp_setting = "all_views"
-                
+                        
         if viewcomp_setting == "all_views":
         
             for num, tgt_idx_map in enumerate(idx_maps):
@@ -313,6 +313,8 @@ def render_noised_cloud(
             inter_pts = torch.tensor(total_intersection)
                     
         elif viewcomp_setting == "penta":
+            
+            # import pdb; pdb.set_trace()
                                     
             keys = [[0,1], [0,2], [1,3], [2,4], [5,3], [5,4]]
             
@@ -329,7 +331,9 @@ def render_noised_cloud(
                 total_intersection = np.union1d(total_intersection, new_inter)
             
             inter_pts = torch.tensor(total_intersection)
-                
+            
+            # import pdb; pdb.set_trace()
+                        
         # import pdb; pdb.set_trace()
 
         # Constant Noising for Intersecting Points

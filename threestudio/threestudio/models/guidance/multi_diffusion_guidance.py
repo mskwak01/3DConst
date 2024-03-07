@@ -392,6 +392,7 @@ class StableDiffusionGuidance(BaseObject):
         idx_map=None,
         inter_dict=None,
         depth_masks=None,
+        grad_setting="after",
         **kwargs,
     ):
         batch_size = rgb.shape[0]
@@ -434,13 +435,11 @@ class StableDiffusionGuidance(BaseObject):
                 
         loc_y = idx_map[:,:,0]
         loc_x = idx_map[:,:,1]
-        
-        grad_setting = "multidiffusion"
-        
-        import pdb; pdb.set_trace()
-        
+                
+        # fusing_loc = "before"
+                
         if grad_setting == "multidiffusion":
-        
+                    
             for num, predicted_grad in enumerate(noise_pred):
                 
                 # This tensor
@@ -460,69 +459,80 @@ class StableDiffusionGuidance(BaseObject):
                                 
                     value[k, :, real_loc_y[k], real_loc_x[k]] += predicted_grad[:, real_loc_y[num], real_loc_x[num]] 
                     count[k, :, real_loc_y[k], real_loc_x[k]] += 1.
-                
-        
-                
-        elif grad_setting == "consistency_mask":
             
-            cons_mask_dict = {}
+                                
+            w = (1 - self.alphas[t]).view(-1, 1, 1, 1)
+
+            pred_grad_whole = torch.where(count > 0, value / count, value)
+
+            grad = w * (pred_grad_whole - noise_map)
+
+            grad = torch.nan_to_num(grad)
+                        
+            # clip grad for stable training?
+            if self.grad_clip_val is not None:
+                grad = grad.clamp(-self.grad_clip_val, self.grad_clip_val)
             
-            for num, src_grad in enumerate(noise_pred):
+            fin_grad = grad
                 
-                # This tensor
+                    
+        elif grad_setting == "after":
+            
+            grad = torch.nan_to_num(grad)
+            
+            if self.grad_clip_val is not None:
+                grad = grad.clamp(-self.grad_clip_val, self.grad_clip_val)
+            
+            for num, predicted_grad in enumerate(grad):
+                
                 batch_list = [i for i in range(batch_size)]
                 other_batch = batch_list[:num] + batch_list[num +1:]
                 
-                # value[num] += predicted_grad
-                # count[num] += 1.
+                value[num] += predicted_grad
+                count[num] += 1.
                             
                 for k in other_batch:
-                    
-                    
-                    tgt_grad = noise_pred[k]
-                    
-                    tgt_tensor = torch.zeros_like(tgt_grad)
-                    src_tensor = torch.zeros_like(tgt_grad)
-
-                    
-                    str(num) + str(k)
-                    
-                    # noise_pred
                     
                     nums, _ = torch.sort(torch.tensor([num,k]))
                     intersection = inter_dict[str(int(nums[0])) + str(int(nums[1]))]
                     
                     real_loc_y = loc_y[:, intersection] 
                     real_loc_x = loc_x[:, intersection]
-                    
-                    tgt_idx_grad = tgt_grad[:, real_loc_y[k], real_loc_x[k]] 
-                    src_idx_grad = src_grad[:, real_loc_y[num], real_loc_x[num]] 
-                    
-                    
                                 
-                    # value[k, :, real_loc_y[k], real_loc_x[k]] += predicted_grad[:, real_loc_y[num], real_loc_x[num]] 
-                    # count[k, :, real_loc_y[k], real_loc_x[k]] += 1.
+                    value[k, :, real_loc_y[k], real_loc_x[k]] += predicted_grad[:, real_loc_y[num], real_loc_x[num]] 
+                    count[k, :, real_loc_y[k], real_loc_x[k]] += 1.
+            
+            fin_grad = torch.where(count > 0, value / count, value)
                 
                 
-        
-                    
-        w = (1 - self.alphas[t]).view(-1, 1, 1, 1)
-
-        pred_grad_whole = torch.where(count > 0, value / count, value)
-
-        grad = w * (pred_grad_whole - noise_map)
-
-        grad = torch.nan_to_num(grad)
-        
-        import pdb; pdb.set_trace()
-        
-        # clip grad for stable training?
-        if self.grad_clip_val is not None:
-            grad = grad.clamp(-self.grad_clip_val, self.grad_clip_val)
-
+        elif grad_setting == "penta":
+            
+            keys = [[0,1], [0,2], [1,3], [2,4], [5,3], [5,4]]
+            
+            weights = [0.8, 0.8, 0.5, 0.5, 0.8, 0.8]
+            
+            # fin_grad = grad
+            
+            for w_idx, view_pair in enumerate(keys):
+                
+                g = view_pair[0]
+                re = view_pair[1]
+                
+                inter_key = str(view_pair[0]) + str(view_pair[1])
+                intersection = inter_dict[inter_key]
+            
+                real_loc_y = loc_y[:, intersection] 
+                real_loc_x = loc_x[:, intersection] 
+                
+                weighted_grad =  grad[g, : , real_loc_y[g], real_loc_x[g]] * weights[w_idx] + grad[re, : , real_loc_y[re], real_loc_x[re]] * ( 1 - weights[w_idx] )
+                
+                grad[re, : , real_loc_y[re], real_loc_x[re]] = weighted_grad
+                
+            fin_grad = grad
+            
         # loss = SpecifyGradient.apply(latents, grad)
         # SpecifyGradient is not straghtforward, use a reparameterization trick instead
-        target = (latents - grad).detach()
+        target = (latents - fin_grad).detach()
         
         if depth_masks is not None:
             # import pdb; pdb.set_trace()
