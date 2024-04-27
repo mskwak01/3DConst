@@ -7,4 +7,4 @@ from .renderer import (
     diff_gaussian_rasterizer_background,
     diff_gaussian_rasterizer_shading,
 )
-from .system import gaussian_mvdream, gaussian_splatting, gaussian_splatting_noising
+from .system import gaussian_mvdream, gaussian_splatting, gaussian_splatting_noising, ngp_noising_sds, ngp_noising_vsd, dreamfusion_sds

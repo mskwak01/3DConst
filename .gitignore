@@ -8,6 +8,8 @@
 
 point_e_model_cache/
 point-e/
+garage/
+data/
 
 threestudio/custom/threestudio-3dgs/gaussian-splatting/submodules/
 # # Distribution / packaging

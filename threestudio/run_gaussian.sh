@@ -1,31 +1,38 @@
+prompts=(
+    "a zoomed out DSLR photo of a ceramic lion, white background"
+    "a peacock with a crown"
+    "a DSLR photo of a silver metallic robot tiger"
+)
 
+img_dirs=(
+    "/home/cvlab15/project/woojeong/wj_threestudio/images/a_ceramic_lion.png"
+    "/home/cvlab15/project/woojeong/naver/images/peacock.png"
+    "/home/cvlab15/project/naver_diffusion/matthew/fresh_three/3DConst/threestudio/images/tiger.jpeg"
+)
 
-# python launch.py --config custom/threestudio-3dgs/configs/gs_sds_threefuse_noising_full.yaml  --train --gpu 4 system.prompt_processor.prompt="a DSLR photo of an origami motorcycle"  system.image_dir="/home/cvlab15/project/naver_diffusion/matthew/fresh_three/3DConst/threestudio/images/motor.png" data.multiview_deg=30.0 system.calibration_value=0
-# python launch.py --config custom/threestudio-3dgs/configs/gs_sds_threefuse_noising_full.yaml  --train --gpu 4 system.prompt_processor.prompt="a DSLR photo of a silver metallic robot tiger"  system.image_dir="/home/cvlab15/project/naver_diffusion/matthew/fresh_three/3DConst/threestudio/images/tiger.jpeg" data.multiview_deg=30.0 system.calibration_value=90
-# python launch.py --config custom/threestudio-3dgs/configs/gs_sds_threefuse_noising_full.yaml  --train --gpu 4 system.prompt_processor.prompt="a DSLR photo of a majestic sailboat"  system.image_dir="/home/cvlab15/project/naver_diffusion/matthew/fresh_three/3DConst/threestudio/images/sail.jpeg" data.multiview_deg=30.0 system.calibration_value=160
+cal_vals=(
+    90
+    0
+    0
+)
 
-python launch.py --config custom/threestudio-3dgs/configs/gs_sds_threefuse_noising_multi.yaml  --train --gpu 5 system.prompt_processor.prompt="a DSLR photo of an owl"  system.image_dir="/home/cvlab15/project/woojeong/naver/images/owl.jpeg" data.batch_size=1 data.num_multiview=3 data.multiview_deg=10.0 system.calibration_value=45
+for i in "${!prompts[@]}";
+do
+python launch.py \
+    --config custom/threestudio-3dgs/configs/gs_sds_pc_init_noising_full.yaml \
+    --train \
+    --gpu 2 \
+    system.tag="pc_depth" \
+    data.num_multiview=1 \
+    system.gradient_masking=false \
+    system.threefuse=true \
+    system.three_noise=true \
+    system.identical_noising=false \
+    system.prompt_processor.prompt="${prompts[i]}" \
+    system.image_dir="${img_dirs[i]}" \
+    system.pts_radius=0.003 \
+    system.calibration_value="${cal_vals[i]}" \
+    # system.three_warp_noise=true \
+    # system.consider_depth=false
 
-# python launch.py --config custom/threestudio-3dgs/configs/gs_sds_threefuse_naive.yaml  --train --gpu 0 system.prompt_processor.prompt="a DSLR photo of an origami motorcycle"  system.image_dir="/home/cvlab15/project/naver_diffusion/matthew/fresh_three/3DConst/threestudio/images/motor.png" data.multiview_deg=30.0 system.calibration_value=0
-# python launch.py --config custom/threestudio-3dgs/configs/gs_sds_threefuse_naive.yaml  --train --gpu 0 system.prompt_processor.prompt="a DSLR photo of a silver metallic robot tiger"  system.image_dir="/home/cvlab15/project/naver_diffusion/matthew/fresh_three/3DConst/threestudio/images/tiger.jpeg" data.multiview_deg=30.0 system.calibration_value=90
-# python launch.py --config custom/threestudio-3dgs/configs/gs_sds_threefuse_naive.yaml  --train --gpu 0 system.prompt_processor.prompt="a DSLR photo of a majestic sailboat"  system.image_dir="/home/cvlab15/project/naver_diffusion/matthew/fresh_three/3DConst/threestudio/images/sail.jpeg" data.multiview_deg=30.0 system.calibration_value=160
-
-
-# python launch.py --config configs/gaussian_splatting.yaml --train --gpu 4 system.prompt_processor.prompt="a DSLR photo of an ironman figure" system.image_dir="/home/cvlab15/project/naver_diffusion/matthew/matt_threestudio/threestudio/threestudio/images/ironman.png"
-# CUDA_VISIBLE_DEVICES=1 python launch.py --config configs/prolificdreamer-fuse.yaml --train --gpu 4 system.prompt_processor.prompt="a DSLR photo of an ironman figure" system.image_dir="/home/cvlab15/project/naver_diffusion/matthew/matt_threestudio/threestudio/threestudio/images/ironman.png"
-
-# python launch.py --config custom/threestudio-3dgs/configs/gaussian_splatting.yaml  --train --gpu 1 system.prompt_processor.prompt="a DSLR photo of an ironman figure" system.image_dir="/home/cvlab15/project/naver_diffusion/matthew/matt_threestudio/threestudio/threestudio/images/ironman.png" system.calibration_value=100 system.gaussian_dynamic=true
-
-# python launch.py --config custom/threestudio-3dgs/configs/gaussian_splatting_noising.yaml  --train --gpu 0 system.prompt_processor.prompt="a DSLR photo of an ironman figure" system.image_dir="/home/cvlab15/project/naver_diffusion/matthew/matt_threestudio/threestudio/threestudio/images/ironman.png" system.calibration_value=100 system.gaussian_dynamic=true
-
-# python launch.py --config custom/threestudio-3dgs/configs/gaussian_splatting_noising.yaml  --train --gpu 3 system.prompt_processor.prompt="a DSLR photo of an ironman figure" system.image_dir="/home/cvlab15/project/naver_diffusion/matthew/matt_threestudio/threestudio/threestudio/images/ironman.png" system.calibration_value=180 system.gaussian_dynamic=true system.three_noise=false
-
-# python launch.py --config custom/threestudio-3dgs/configs/gs_vsd_threefuse_noising.yaml  --train --gpu 0 system.prompt_processor.prompt="a DSLR photo of an ironman figure" system.image_dir="/home/cvlab15/project/naver_diffusion/matthew/matt_threestudio/threestudio/threestudio/images/ironman.png" system.calibration_value=180 system.identical_noising=false system.gaussian_dynamic=true system.three_noise=true
-
-
-# python launch.py --config custom/threestudio-3dgs/configs/gs_sds_threefuse_naive.yaml  --train --gpu 4 system.prompt_processor.prompt="a DSLR photo of an ironman figure" system.image_dir="/home/cvlab15/project/naver_diffusion/matthew/matt_threestudio/threestudio/threestudio/images/ironman.png" data.multiview_deg=30.0 system.calibration_value=180
-# python launch.py --config custom/threestudio-3dgs/configs/gs_sds_threefuse_noising_pts.yaml  --train --gpu 4 system.prompt_processor.prompt="a DSLR photo of an ironman figure" system.image_dir="/home/cvlab15/project/naver_diffusion/matthew/matt_threestudio/threestudio/threestudio/images/ironman.png" data.multiview_deg=30.0 system.calibration_value=180
-# python launch.py --config custom/threestudio-3dgs/configs/gs_sds_threefuse_noising_full.yaml  --train --gpu 4 system.prompt_processor.prompt="a DSLR photo of an ironman figure" system.image_dir="/home/cvlab15/project/naver_diffusion/matthew/matt_threestudio/threestudio/threestudio/images/ironman.png" data.multiview_deg=30.0 system.calibration_value=180
-
-
-
+done

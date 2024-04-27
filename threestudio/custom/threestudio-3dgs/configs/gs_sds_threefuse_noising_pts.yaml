@@ -56,7 +56,7 @@ system:
     pc_init_radius: 0.8
     opacity_init: 0.2
 
-  renderer_type: "diff-gaussian-rasterizer"
+  renderer_type: "diff-gaussian-rasterizer-shading"
   renderer:
     debug: false
     invert_bg_prob: 0.5

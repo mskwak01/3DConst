@@ -1,20 +1,48 @@
 
 # python launch.py --config custom/threestudio-3dgs/configs/gs_sds_pc_init_noising_full.yaml  --train --gpu 1 system.prompt_processor.prompt="a DSLR photo of an owl"  system.image_dir="/home/cvlab15/project/woojeong/naver/images/owl.jpeg" data.batch_size=1 data.num_multiview=2 data.multiview_deg=20.0 system.calibration_value=45 data.front_optimize=true
 
-
-python launch.py --config custom/threestudio-3dgs/configs/gs_sds_pc_init_noising_full.yaml  --train \
-    --gpu 6 \
-    system.tag="tester" \
-    system.gradient_masking=false \
-    system.prompt_processor.prompt="a rabbit on a pancake" \
-    system.image_dir="/home/cvlab15/project/woojeong/naver/images/rabbit-pancake.jpeg" \
-    data.batch_size=2 \
-    data.num_multiview=2 \
-    data.multiview_deg=20 \
-    data.front_optimize=true \
-    data.batch_uniform_azimuth=false \
+python launch.py --config custom/threestudio-3dgs/configs/gs_sds_pc_init_noising_multi.yaml  --train \
+    system.tag="INES_MD_finmask_norm_view_2_2_pts_002" \
+    system.gradient_masking=true \
+    system.prompt_processor.prompt="a full body of a cat wearing a hat" \
+    system.image_dir="/home/cvlab15/project/woojeong/naver/images/cat-hat.png" \
     system.calibration_value=90 \
     system.pts_radius=0.02 \
+    data.only_front=false \
+    system.nearby_fusing=false \
+    data.batch_size=2 \
+    data.num_multiview=1 \
+    data.multiview_deg=20 \
+    data.front_optimize=false \
+    data.batch_uniform_azimuth=true \
+    system.geometry.split_thresh=0.01 \
+
+
+
+# python launch.py --config custom/threestudio-3dgs/configs/gs_sds_pc_init_noising_multi.yaml  --train \
+#     --gpu 6 \
+#     system.tag="finmask_penta_view_2_2_pts_002" \
+#     system.gradient_masking=true \
+#     system.prompt_processor.prompt="a rabbit on a pancake" \
+#     system.image_dir="/home/cvlab15/project/woojeong/naver/images/rabbit-pancake.jpeg" \
+#     system.calibration_value=90 \
+#     system.pts_radius=0.02 \
+#     system.geometry.split_thresh=0.01 \
+
+
+# python launch.py --config custom/threestudio-3dgs/configs/gs_sds_pc_init_noising_full.yaml  --train \
+#     --gpu 6 \
+#     system.tag="tester" \
+#     system.gradient_masking=false \
+#     system.prompt_processor.prompt="a rabbit on a pancake" \
+#     system.image_dir="/home/cvlab15/project/woojeong/naver/images/rabbit-pancake.jpeg" \
+#     data.batch_size=2 \
+#     data.num_multiview=2 \
+#     data.multiview_deg=20 \
+#     data.front_optimize=true \
+#     data.batch_uniform_azimuth=false \
+#     system.calibration_value=90 \
+#     system.pts_radius=0.02 \
 
     # system.tag="finmask_nograd_view_fr_2_2_pts_002" \
 

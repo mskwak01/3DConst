@@ -430,8 +430,7 @@ class StableDiffusionGuidance(BaseObject):
             
         noise_pred = guidance_eval_utils["noise_pred"]    
             
-        value = torch.zeros_like(latents)
-        count = torch.zeros_like(latents)
+        comp_tensors = [torch.zeros_like(latents) for i in range(batch_size)]
                 
         loc_y = idx_map[:,:,0]
         loc_x = idx_map[:,:,1]
@@ -442,12 +441,14 @@ class StableDiffusionGuidance(BaseObject):
                     
             for num, predicted_grad in enumerate(noise_pred):
                 
+                grad = comp_tensors[num]
+                
                 # This tensor
                 batch_list = [i for i in range(batch_size)]
                 other_batch = batch_list[:num] + batch_list[num +1:]
                 
-                value[num] += predicted_grad
-                count[num] += 1.
+                grad[num] += predicted_grad
+                # count[num] += 1. 
                             
                 for k in other_batch:
                     
@@ -457,9 +458,10 @@ class StableDiffusionGuidance(BaseObject):
                     real_loc_y = loc_y[:, intersection] 
                     real_loc_x = loc_x[:, intersection]
                                 
-                    value[k, :, real_loc_y[k], real_loc_x[k]] += predicted_grad[:, real_loc_y[num], real_loc_x[num]] 
-                    count[k, :, real_loc_y[k], real_loc_x[k]] += 1.
+                    grad[k, :, real_loc_y[k], real_loc_x[k]] += predicted_grad[:, real_loc_y[num], real_loc_x[num]] 
+                    # count[k, :, real_loc_y[k], real_loc_x[k]] += 1.
             
+            import pdb; pdb.set_trace()
                                 
             w = (1 - self.alphas[t]).view(-1, 1, 1, 1)
 
@@ -478,6 +480,8 @@ class StableDiffusionGuidance(BaseObject):
                     
         elif grad_setting == "after":
             
+            import pdb; pdb.set_trace()
+            
             grad = torch.nan_to_num(grad)
             
             if self.grad_clip_val is not None:
@@ -488,8 +492,10 @@ class StableDiffusionGuidance(BaseObject):
                 batch_list = [i for i in range(batch_size)]
                 other_batch = batch_list[:num] + batch_list[num +1:]
                 
-                value[num] += predicted_grad
-                count[num] += 1.
+                grad = comp_tensors[num]
+                
+                grad[num] += predicted_grad
+                # count[num] += 1.
                             
                 for k in other_batch:
                     
@@ -499,10 +505,12 @@ class StableDiffusionGuidance(BaseObject):
                     real_loc_y = loc_y[:, intersection] 
                     real_loc_x = loc_x[:, intersection]
                                 
-                    value[k, :, real_loc_y[k], real_loc_x[k]] += predicted_grad[:, real_loc_y[num], real_loc_x[num]] 
-                    count[k, :, real_loc_y[k], real_loc_x[k]] += 1.
+                    grad[k, :, real_loc_y[k], real_loc_x[k]] += predicted_grad[:, real_loc_y[num], real_loc_x[num]] 
+                    # count[k, :, real_loc_y[k], real_loc_x[k]] += 1.
             
-            fin_grad = torch.where(count > 0, value / count, value)
+            import pdb; pdb.set_trace()
+            
+            # fin_grad = torch.where(count > 0, value / count, value)
                 
                 
         elif grad_setting == "penta":

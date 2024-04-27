@@ -35,7 +35,7 @@ class RandomCameraDataModuleConfig:
     eval_height: int = 512
     eval_width: int = 512
     eval_batch_size: int = 1
-    n_val_views: int = 6
+    n_val_views: int = 4
     n_test_views: int = 120
     elevation_range: Tuple[float, float] = (-10, 90)
     azimuth_range: Tuple[float, float] = (-180, 180)
@@ -394,7 +394,7 @@ class RandomCameraIterableDataset(IterableDataset, Updateable):
         )  # FIXME: hard-coded near and far
         mvp_mtx: Float[Tensor, "B 4 4"] = get_mvp_matrix(c2w, self.proj_mtx)
         self.fovy = fovy
-        
+                
         return {
             "rays_o": rays_o,
             "rays_d": rays_d,

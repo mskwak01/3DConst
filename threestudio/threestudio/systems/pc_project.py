@@ -64,7 +64,7 @@ class PointsRenderer(nn.Module):
         self.compositor = self.compositor.to(device)
         return self
 
-    def forward(self, point_clouds, return_idx=False, **kwargs) -> torch.Tensor:
+    def forward(self, point_clouds, return_idx=False, equal_weighting=False, **kwargs) -> torch.Tensor:
         fragments = self.rasterizer(point_clouds, **kwargs)
 
         # import pdb; pdb.set_trace(
@@ -73,20 +73,37 @@ class PointsRenderer(nn.Module):
         
         if return_idx:
             idx = fragments[0][0, ..., :1]
-
+        
         # Construct weights based on the distance of a point to the true point.
         # However, this could be done differently: e.g. predicted as opposed
         # to a function of the weights.
         r = self.rasterizer.raster_settings.radius
 
         dists2 = fragments.dists.permute(0, 3, 1, 2)
-        weights = 1 - dists2 / (r * r)
-        images = self.compositor(
-            fragments.idx.long().permute(0, 3, 1, 2),
-            weights,
-            point_clouds.features_packed().permute(1, 0),
-            **kwargs,
-        )
+                
+        if not equal_weighting:
+            weights = 1 - dists2 / (r * r)
+            
+            images = self.compositor(fragments.idx.long().permute(0, 3, 1, 2), weights, point_clouds.features_packed().permute(1, 0),**kwargs,)
+        
+        else:            
+            pts_canvas = fragments.idx.long().permute(0, 3, 1, 2)
+            pix_can = (pts_canvas > 0).int()
+            num_pix_pts = torch.sum(pix_can,dim=1)            
+            weights = ((torch.ones_like(pts_canvas) * pix_can ) / torch.sqrt(num_pix_pts)[:,None,...]).nan_to_num() + (1 - pix_can) * (1 + 1/(r*r))
+            # weights = ((torch.ones_like(pts_canvas) * pix_can ) / num_pix_pts[:,None,...]).nan_to_num() + (1 - pix_can) * (1 + 1/(r*r))
+            
+            B, C, H, W = pts_canvas.shape
+            
+            # Composition
+            # images = self.compositor(fragments.idx.long().permute(0, 3, 1, 2), weights, point_clouds.features_packed().permute(1, 0),**kwargs,)
+            features = torch.cat((point_clouds.features_packed(), torch.zeros(1,4).to(point_clouds.device)))
+            idxs = pts_canvas.reshape(-1,1).squeeze()
+            pix_feat = features[idxs].reshape(B,C,H,W,4).sum(dim=1)
+            raw_sum_images = pix_feat.permute(0,3,1,2)
+            
+            images = raw_sum_images / torch.sqrt(num_pix_pts[:,None,...])        
+        # 
 
         # permute so image comes at the end
         images = images.permute(0, 2, 3, 1)
@@ -98,11 +115,11 @@ class PointsRenderer(nn.Module):
 
 
 def render_depth_from_cloud(
-    points, batch, raster_settings, cam_radius, device, calibration_value = 0, dynamic_points=False,
+    points, batch, raster_settings, cam_radius, device, cali=0, dynamic_points=False, raw=False,
 ):
     radius = cam_radius[0]
 
-    horizontal = batch["azimuth"].to(device).type(torch.float32) + calibration_value + 90
+    horizontal = batch["azimuth"].to(device).type(torch.float32) + cali
     elevation = batch["elevation"].to(device).type(torch.float32)
     FoV = batch["fov"].to(device).type(torch.float32)
 
@@ -123,7 +140,7 @@ def render_depth_from_cloud(
             dtype=torch.float32,
         ).to(device)
         
-        # colors = torch.randn_like(point_loc).to(device)
+        # colors = torch.andn_like(point_loc).to(device)
 
 
     matching_rotation = torch.tensor(
@@ -141,12 +158,18 @@ def render_depth_from_cloud(
     
     depth_maps = []
     
+    raw_maps = []
+    
     for camera in cameras:
         
         _, raw_depth_map = pointcloud_renderer(point_cloud, camera, raster_settings, device)
 
-        disparity = camera.focal_length[0, 0] / (raw_depth_map + 1e-9)
+        raw_maps.append(raw_depth_map)
 
+        disparity = camera.focal_length[0, 0] / (raw_depth_map + 1e-9)
+        
+        # import pdb; pdb.set_trace()
+        
         max_disp = torch.max(disparity)
         min_disp = torch.min(disparity[disparity > 0])
 
@@ -163,25 +186,35 @@ def render_depth_from_cloud(
         depth_maps.append(depth_map)
     
     depth_maps_tensor = torch.stack(depth_maps)
+    raw_depth_maps = torch.stack(raw_maps)
+    
+    # print(horizontal)
+    # save_image(depth_maps_tensor[0], "depth_1.png")
+    # save_image(depth_maps_tensor[1], "depth_2.png")
+    
+    # import pdb; pdb.set_trace()
     
     ##############
     # mask = (depth_maps_tensor[4] > 0.4)
     
-    # import pdb; pdb.set_trace()
-
-    return depth_maps_tensor
+    if raw:
+        maps = raw_depth_maps
+    else:
+        maps = depth_maps_tensor
+        
+    return maps
 
 
 def render_noised_cloud(
     points, batch, noise_tensor, noised_raster_settings, surface_raster_settings, noise_channel, cam_radius, device, 
-    calibration_value = 0, dynamic_points=False, identical_noising=False, id_tensor=None, 
+    cali = 0, dynamic_points=False, identical_noising=False, id_tensor=None, 
     viewcomp_setting="all_views"
 ):
     radius = cam_radius[0]
     loc_tensor = None
     inter_dict = None
 
-    horizontal = batch["azimuth"].to(device).type(torch.float32) + calibration_value + 90
+    horizontal = batch["azimuth"].to(device).type(torch.float32) + cali
     elevation = batch["elevation"].to(device).type(torch.float32)
     FoV = batch["fov"].to(device).type(torch.float32)
 
@@ -195,9 +228,7 @@ def render_noised_cloud(
 
     feature = noise_tensor
     
-    matching_rotation = torch.tensor(
-        [[[1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, -1.0, 0.0]]], dtype=torch.float32
-    ).to(device)
+    matching_rotation = torch.tensor([[[1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, -1.0, 0.0]]], dtype=torch.float32).to(device)
 
     rot_points = (
         (matching_rotation @ point_loc[..., None])
@@ -205,6 +236,8 @@ def render_noised_cloud(
         .to(device)
         .type(torch.float32)
     )
+    
+    # import pdb; pdb.set_trace()
 
     point_cloud = Pointclouds(points=[rot_points], features=[feature])
     
@@ -218,6 +251,9 @@ def render_noised_cloud(
     # interpolated_mask = True
     
     for camera in cameras:
+        
+        # import pdb; pdb.set_trace()
+        
         noise_map, raw_depth_map, idx_map = pointcloud_renderer(point_cloud, camera, noised_raster_settings, device, return_idx=True)
         _, smooth_depth_map, _ = pointcloud_renderer(point_cloud, camera, surface_raster_settings, device, return_idx=True)
         # Depth map location
@@ -264,13 +300,15 @@ def render_noised_cloud(
         
         masked_idx = torch.clamp(idx_map - 1e7 * ( 1 - depth_mask ), min=-1, max=None)
     
-        background_noise = (1 - depth_mask) * torch.randn(64, 64, noise_channel).to(device)
-        final_noise = noise_map[0] * depth_mask + background_noise
+        # background_noise = (1 - depth_mask) * torch.randn(64, 64, noise_channel).to(device)
+        # final_noise = noise_map[0] * depth_mask + background_noise
+        final_noise = noise_map[0] * depth_mask
         
         raw_depth_masks.append(depth_mask.permute(2,0,1).detach())
         noise_maps.append(final_noise[None,...])
         idx_maps.append(masked_idx.long())
     
+    # import pdb; pdb.set_trace()
     noise_maps_tensor = torch.stack(noise_maps).squeeze()
     depth_masks = torch.stack(raw_depth_masks).detach()
         
@@ -334,13 +372,6 @@ def render_noised_cloud(
             
             # import pdb; pdb.set_trace()
                         
-        # import pdb; pdb.set_trace()
-
-        # Constant Noising for Intersecting Points
-        
-        # brand_new_noise = True
-        
-        # if brand_new_noise:
         noise_canvas = torch.zeros([point_loc.shape[0], noise_channel]).float().to(device)      
         if id_tensor is None:  
             noise_canvas[inter_pts] = torch.randn(inter_pts.shape[0],noise_channel).to(device)
@@ -349,7 +380,9 @@ def render_noised_cloud(
         # else:
         #     noise_canvas = torch.zeros([point_loc.shape[0], noise_channel]).float().to(device)
             
-        #     noise_canvas[inter_pts] = centerpoint_noise            
+        #     noise_canvas[inter_pts] = centerpoint_noise        
+        
+        # import pdb; pdb.set_trace()    
         
         loc_y = loc_tensor[:,:,0]
         loc_x = loc_tensor[:,:,1]
@@ -358,8 +391,208 @@ def render_noised_cloud(
             noise_maps_tensor[i,loc_y[i],loc_x[i],:] = noise_canvas
             
         # import pdb; pdb.set_trace()
+    try:
+        fin_noise = noise_maps_tensor.permute(0,3,1,2).detach()
+    except:
+        fin_noise = noise_maps_tensor[None,...].permute(0,3,1,2).detach()
+                   
+    return fin_noise, loc_tensor, inter_dict, depth_masks
+
+
+def render_upscaled_noised_cloud(
+    points, batch, noise_tensor, surface_raster_settings, up_noise_raster_settings, noise_channel, cam_radius, device, 
+    cali = 0, dynamic_points=False, cut_thresh=0.3, consider_depth=True, **kwargs
+):  
+    
+    # import pdb; pdb.set_trace()
+    
+    radius = cam_radius[0]
+    loc_tensor = None
+    inter_dict = None
+
+    horizontal = batch["azimuth"].to(device).type(torch.float32) + cali
+    elevation = batch["elevation"].to(device).type(torch.float32)
+    FoV = batch["fov"].to(device).type(torch.float32)
+
+    cameras = py3d_camera(radius, elevation, horizontal, FoV, device)
+
+    if dynamic_points:
+        point_loc = points
+    
+    else:
+        try:
+            point_loc = torch.tensor(points.coords, dtype=torch.float32).to(device)
+        except:
+            point_loc = points
+
+    feature = noise_tensor
+    
+    matching_rotation = torch.tensor(
+        [[[1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, -1.0, 0.0]]], dtype=torch.float32
+    ).to(device)
+
+    rot_points = (
+        (matching_rotation @ point_loc[..., None])
+        .squeeze()
+        .to(device)
+        .type(torch.float32)
+    )
+
+    point_cloud = Pointclouds(points=[rot_points], features=[feature])
+    
+    noise_maps = []
+    raw_noise_maps = []
+    idx_maps = []
+    raw_depth_masks = []
+    depth_maps = []
+    
+    raw_depth = []
+    
+    # debugger = True
+    
+    # while debugger:
+        # n_upscaling = int(input("n_upscaling: "))
+        # pts_var = float(input("pts_var: "))
+        # feat_var = float(input)
         
-    fin_noise = noise_maps_tensor.permute(0,3,1,2).detach()
+    pts_var = 0.03
+
+    n_upscaling = kwargs["n_upscaling"]    
+    loc_rand = kwargs["loc_rand"]
+    feat_rand = kwargs["feat_rand"]
+    
+    # Increase the number of points by N (point location)
+    
+    num_points = rot_points.shape[0]
+    
+    loc_noising = (pts_var * loc_rand).to(device)
+    upscaled_locs = (rot_points[...,None] + loc_noising).permute(0,2,1).reshape(-1,3)
+    # upscaled_locs = (rot_points[...,None]).permute(0,2,1).reshape(-1,3)
+
+
+    # Conditioned upsampling for the noise (how I warped your noise)
+    upscaled_means = noise_tensor[...,None].repeat(1,1,n_upscaling)
+    raw_up_rand = feat_rand.to(device)
+    noise_means = torch.mean(raw_up_rand, dim=-1)[...,None]
+    upscaled_feats = raw_up_rand - noise_means
+    
+    up_noise = upscaled_means / torch.sqrt(torch.tensor(n_upscaling)) + upscaled_feats
+    up_noise = up_noise.permute(0,2,1).reshape(-1,4)
+    
+    # import pdb; pdb.set_trace()    
+    upscaled_feats = up_noise
+    
+    # Rasterizer w/ very small points
+
+    upscaled_point_cloud = Pointclouds(points=[upscaled_locs], features=[upscaled_feats])
+    
+    ########## CAMERA
+    
+    # surf_depth_map = []
+    
+    # camera = cameras[0]
+    for camera in cameras:
+        
+        # import pdb; pdb.set_trace()
+        
+        noise_map, raw_depth_map, idx_map = pointcloud_renderer(upscaled_point_cloud, camera, up_noise_raster_settings, device, return_idx=True, eq_w=True)
+        
+        if consider_depth:
+            _, smooth_depth_map, _ = pointcloud_renderer(point_cloud, camera, surface_raster_settings, device, return_idx=True, eq_w=True)
+        # Depth map location
+        
+        # surf_depth_map.append(smooth_depth_map)
+        
+        # Raw depth
+        
+        disparity = camera.focal_length[0, 0] / (raw_depth_map + 1e-9)
+
+        max_disp = torch.max(disparity)
+        min_disp = torch.min(disparity[disparity > 0])
+
+        norm_disparity = (disparity - min_disp) / (max_disp - min_disp)
+        
+        ori_mask = (norm_disparity > 0).float()
+        # norm_disparity = ori_mask * norm_disparity
+        
+        # save_image(norm_disparity.permute(2,0,1), "hello.png")
+        # save_image(noise_map[0,:,:,:3].permute(2,0,1), "noise_1.png")
+        # save_image(noise_map[0,:,:,1:].permute(2,0,1), "noise_2.png")
+            
+        raw_depth.append(norm_disparity)
+        
+        if consider_depth:
+
+            ###########
+        
+            smooth_disparity = camera.focal_length[0, 0] / (smooth_depth_map + 1e-9)
+
+            sm_max_disp = torch.max(smooth_disparity)
+            sm_min_disp = torch.min(smooth_disparity[smooth_disparity > 0])
+
+            smooth_norm_disparity = (smooth_disparity - sm_min_disp) / (sm_max_disp - sm_min_disp)
+            # smooth_mask = (smooth_norm_disparity > 0.)
+            # smooth_norm_disparity = smooth_mask * smooth_norm_disparity 
+            
+            differences = smooth_norm_disparity - norm_disparity
+            
+            # import pdb; pdb.set_trace()
+            
+            diff_mask = (differences < cut_thresh).float()
+            
+            ultimate_mask = ori_mask * diff_mask
+            
+            mask = ultimate_mask
+            
+            fin_disparity = norm_disparity * mask
+            depth_mask = mask.float()
+            
+            depth_map = fin_disparity.permute(2,0,1).detach()
+                    
+            depth_maps.append(depth_map)
+            
+            masked_idx = torch.clamp(idx_map - 1e7 * ( 1 - depth_mask ), min=-1, max=None)
+        
+            # background_noise = (1 - depth_mask) * torch.randn(64, 64, noise_channel).to(device)
+            # final_noise = noise_map[0] * depth_mask + background_noise
+            
+            final_noise = (noise_map[0])  * depth_mask
+            
+            # final_noise = (noise_map[0]/ 3.5 + 0.5) * depth_mask
+
+            raw_depth_masks.append(depth_mask.permute(2,0,1).detach())
+            noise_maps.append(final_noise[None,...])
+            idx_maps.append(masked_idx.long())
+        
+        else:
+            mask = ori_mask
+            depth_mask = ori_mask
+
+            background_noise = (1 - depth_mask) * torch.randn(64, 64, noise_channel).to(device)
+            # final_noise = noise_map[0] * depth_mask + background_noise            
+            
+            final_noise = (noise_map[0]) * depth_mask
+            
+            # final_noise = (noise_map[0]/ 3.5 + 0.5) * depth_mask
+
+
+            noise_maps.append(final_noise[None,...])
+            raw_depth_masks.append(depth_mask.permute(2,0,1).detach())
+            idx_maps = None
+
+                
+    noise_maps_tensor = torch.stack(noise_maps).squeeze()
+    depth_masks = torch.stack(raw_depth_masks).detach()
+    # surf_map = torch.stack(surf_depth_map)
+    
+    # import pdb; pdb.set_trace()
+    
+    # noise_maps_tensor = noise_maps_tensor / 5 + 0.5
+    
+    try:
+        fin_noise = noise_maps_tensor.permute(0,3,1,2).detach() 
+    except:
+        fin_noise = noise_maps_tensor[None,...].permute(0,3,1,2).detach()
                             
     return fin_noise, loc_tensor, inter_dict, depth_masks
 
@@ -393,7 +626,7 @@ def py3d_camera(radius, elevations, horizontals, FoV, device, img_size=800):
     return cameras
 
 
-def pointcloud_renderer(point_cloud, camera, raster_settings, device, return_idx=False):
+def pointcloud_renderer(point_cloud, camera, raster_settings, device, return_idx=False, eq_w=False):
     camera = camera.to(device)
 
     rasterizer = our_PointsRasterizer(cameras=camera, raster_settings=raster_settings)
@@ -401,7 +634,7 @@ def pointcloud_renderer(point_cloud, camera, raster_settings, device, return_idx
         device
     )
 
-    image = renderer(point_cloud, return_idx=return_idx)
+    image = renderer(point_cloud, return_idx=return_idx, equal_weighting=eq_w)
 
     return image
 
@@ -831,3 +1064,154 @@ class our_PointsRasterizer(nn.Module):
 
 
 ################
+
+
+def reprojector(pts_locations, pts_feats, target_pose, target_pose_inv, fovy, device, ref_depth=None, img_size=64):
+    """
+    Inverse
+    Source: Unseen view
+    Target: GT view
+    
+    """ 
+    
+    # height, width, _ = source_rays.origins.shape
+    
+    # source_viewdirs = source_rays.viewdirs.reshape(-1,3)
+    # source_distance_flat = source_distance.reshape(-1,1)
+    # source_origins = source_rays.origins.reshape(-1,3)
+        
+    # pts_locations = source_viewdirs * source_distance_flat + source_origins
+    pts_sampled = pts_locations
+        
+    # if data_type == "blender" or data_type == "dtu":
+        
+    target_origin = target_pose[:,:3,-1]        
+
+    # if data_type == "blender":
+    # target_center_viewdir = ( - target_pose[:,:3,2])
+    # elif data_type == "dtu":
+    target_center_viewdir = (target_pose[:,:3,2])
+        
+    
+    # Raymaker ########################### From Seen to Unseen
+
+    # pts_to_tgt_origin = pts_sampled - target_origin[None, :]
+    
+    pts_to_tgt_origin = pts_sampled[None,...] - target_origin[:,None,...]
+    
+    dist_to_tgt_origin = torch.linalg.norm(pts_to_tgt_origin, axis=-1, keepdims=True)
+    target_viewdirs = pts_to_tgt_origin / dist_to_tgt_origin
+
+    new_per_view_lengths = (target_viewdirs * target_center_viewdir[:, None, :]).sum(axis = -1)
+    target_directions = target_viewdirs / new_per_view_lengths[..., None]
+    
+    # Reprojector: Given target view, where do the points fall? ###############
+
+    worldtocamera = target_pose_inv
+    
+    target_cameradir = (target_directions[...,None,:] * worldtocamera[..., None, :3, :3]).sum(-1)
+
+    target_projection = target_cameradir[...,:2]
+    
+    # Flip the coordinates so that order is [y_coordinate, x_coordinate]
+    
+    unflip_proj = target_projection / torch.tan(0.5 * fovy[...,None,None]) # Consider focal length / FoV
+    projected_loc_norm = unflip_proj.reshape(-1,2).fliplr().reshape(4,-1,2) * torch.tensor([1,-1]).to(device)[None,None,...]
+    
+    proj_loc = projected_loc_norm * (img_size / 2) + (img_size / 2)
+    
+    proj_pix = proj_loc.floor()
+    
+    feature_maps = one_to_one_rasterizer(proj_pix, pts_feats, dist_to_tgt_origin, device, ref_depth, img_size=64)
+    
+    return feature_maps
+    # out = tester(proj) 
+    
+    # import pdb; pdb.set_trace()
+    
+
+def one_to_one_rasterizer(pts_proj_pix, pts_feats, pts_depth, device, ref_depth=None, img_size=64, pts_per_pix=2000, pts_thresh=0.3):
+    
+    batch_size, num_pts = pts_depth.shape[0], pts_depth.shape[1]
+            
+    idx_num = torch.linspace(0,num_pts-1,steps=num_pts)[None,...,None].repeat(batch_size,1,1).to(device)
+    # rasterizer_info = torch.cat((pts_depth, idx_num),dim=-1)
+    rasterizer_info = torch.cat((pts_depth, idx_num, pts_feats[None,...].repeat(batch_size,1,1)),dim=-1)
+    rast_bin = torch.linspace(0,pts_per_pix-1,steps=pts_per_pix).repeat(num_pts // pts_per_pix + 1)[:num_pts].int().to(device)
+    
+    pts_proj_pix = pts_proj_pix.int()
+    
+    y_coords = pts_proj_pix[...,0]
+    x_coords = pts_proj_pix[...,1]
+    
+    feature_maps = []
+    
+    # pix_key = torch.linspace(0, img_size **2 -1, steps=img_size**2)[...,None].repeat(1, pts_per_pix).int().flatten().to(device)
+        
+    for i in range(batch_size):
+        
+        canv = 10 * torch.ones((img_size, img_size, pts_per_pix, 6)).to(device) * torch.tensor([1,-1, 0, 0, 0, 0])[None,None,None,...].to(device)
+                
+        canv[y_coords[i], x_coords[i], rast_bin] = rasterizer_info[i]            
+                
+        # Sorting algorithm - not needed for now ----------------------
+        
+        # depth_key = torch.argsort(canv[:,:,:,0].reshape(-1, pts_per_pix), dim=-1).flatten()
+        # img_shaped_values = canv.reshape(-1,pts_per_pix,6)[pix_key, depth_key].reshape(img_size, img_size, pts_per_pix, 6)
+        
+        ######################## --------------------------------------
+        
+        depth_mask = (torch.abs(ref_depth[i] - canv[...,0]) < pts_thresh).float()
+        pix_num_pts = depth_mask.sum(-1)
+        pix_bin_features = depth_mask[...,None] * canv[...,2:]
+        
+        pix_feat = pix_bin_features.sum(dim=-2)
+        fin_feat = pix_feat / torch.sqrt(pix_num_pts[...,None])
+        
+        feature_maps.append(fin_feat)
+        
+    feat_maps = torch.stack(feature_maps).permute(0,3,1,2)
+    
+    # import pdb; pdb.set_trace()
+    
+    return feat_maps
+        
+        
+
+def tester(proj, idx = 0):
+
+    test_projection = proj[idx]
+    
+    resized_proj = test_projection * 256 + 256
+    
+    empty_canvas = torch.zeros((1,512,512)).to(test_projection.device)
+
+    for pt in resized_proj:
+        y_val = int(pt[1])
+        x_val = - int(pt[0])
+        
+        empty_canvas[:,y_val, x_val] = 1
+    
+    canv = empty_canvas / torch.max(empty_canvas)
+    
+    return canv
+    
+                    
+                    
+def depth_tester(proj, depth, idx = 0):
+
+    test_projection = proj[idx]
+    
+    resized_proj = test_projection * 256 + 256
+    
+    empty_canvas = torch.zeros((1,512,512)).to(test_projection.device)
+
+    for i, pt in enumerate(resized_proj):
+        y_val = int(pt[1])
+        x_val = - int(pt[0])
+        
+        empty_canvas[:,y_val, x_val] = depth[idx,i]
+    
+    canv = empty_canvas / torch.max(empty_canvas)
+    
+    return canv

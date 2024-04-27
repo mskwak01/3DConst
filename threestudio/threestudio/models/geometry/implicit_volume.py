@@ -110,6 +110,8 @@ class ImplicitVolume(BaseImplicitGeometry):
         self, points: Float[Tensor, "*N Di"], output_normal: bool = False
     ) -> Dict[str, Float[Tensor, "..."]]:
         grad_enabled = torch.is_grad_enabled()
+        
+        # output_normal = False
 
         if output_normal and self.cfg.normal_type == "analytic":
             torch.set_grad_enabled(True)

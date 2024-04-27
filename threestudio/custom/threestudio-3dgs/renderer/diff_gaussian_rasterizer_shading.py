@@ -9,6 +9,10 @@ from diff_gaussian_rasterization import (
     GaussianRasterizationSettings,
     GaussianRasterizer,
 )
+# from diff_gaussian_rasterization_depth import (
+#     depth_GaussianRasterizationSettings, 
+#     depth_GaussianRasterizer
+# )
 from threestudio.models.background.base import BaseBackground
 from threestudio.models.geometry.base import BaseGeometry
 from threestudio.models.materials.base import BaseMaterial

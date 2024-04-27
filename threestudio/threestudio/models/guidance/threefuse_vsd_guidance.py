@@ -502,7 +502,8 @@ class StableDiffusionVSDGuidance(BaseModule):
         camera_condition: Float[Tensor, "B 4 4"],
         text_embeddings_vd_aux: Float[Tensor, "BB 77 1024"],
         text_embeddings_aux: Float[Tensor, "BB 77 1024"],
-        noise_map
+        noise_map,
+        **kwargs,
     ):
         B = latents.shape[0]
 
@@ -659,6 +660,7 @@ class StableDiffusionVSDGuidance(BaseModule):
             ),
             cross_attention_kwargs={"scale": 1.0},
         )
+        
         return F.mse_loss(noise_pred.float(), target.float(), reduction="mean")
 
     def get_latents(
@@ -692,11 +694,21 @@ class StableDiffusionVSDGuidance(BaseModule):
         depth_map=None,
         noise_map=None,
         rgb_as_latents=False,
+        idx_map=None,
+        inter_dict=None,
+        depth_masks=None,
         **kwargs,
     ):
+            
+        # import pdb; pdb.set_trace()
+                
         batch_size = rgb.shape[0]
 
         rgb_BCHW = rgb.permute(0, 3, 1, 2)
+        
+        # import pdb; pdb.set_trace()
+        
+        # depth_map
         
         # import pdb; pdb.set_trace()
         latents = self.get_latents(rgb_BCHW, rgb_as_latents=rgb_as_latents)
@@ -767,6 +779,14 @@ class StableDiffusionVSDGuidance(BaseModule):
         # reparameterization trick
         # d(loss)/d(latents) = latents - target = latents - (latents - grad) = grad
         target = (latents - grad).detach()
+        
+        
+        if depth_masks is not None:
+            # import pdb; pdb.set_trace()
+            latents = depth_masks * latents
+            target = depth_masks * target
+            # import pdb; pdb.set_trace()
+        
         loss_vsd = 0.5 * F.mse_loss(latents, target, reduction="sum") / batch_size
 
         loss_lora = self.train_lora(latents, text_embeddings_aux, camera_condition)

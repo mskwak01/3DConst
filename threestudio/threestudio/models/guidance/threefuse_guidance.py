@@ -417,6 +417,9 @@ class StableDiffusionGuidance(BaseObject):
         noise_map=None,
         rgb_as_latents=False,
         guidance_eval=False,
+        idx_map=None,
+        inter_dict=None,
+        depth_masks=None,
         **kwargs,
     ):
         batch_size = rgb.shape[0]
@@ -465,6 +468,15 @@ class StableDiffusionGuidance(BaseObject):
         # SpecifyGradient is not straghtforward, use a reparameterization trick instead
         target = (latents - grad).detach()
         # d(loss)/d(latents) = latents - target = latents - (latents - grad) = grad
+        
+        # import pdb; pdb.set_trace()
+        
+        if depth_masks is not None:
+            # import pdb; pdb.set_trace()
+            latents = depth_masks * latents
+            target = depth_masks * target
+            # import pdb; pdb.set_trace()
+        
         loss_sds = 0.5 * F.mse_loss(latents, target, reduction="sum") / batch_size
 
         guidance_out = {

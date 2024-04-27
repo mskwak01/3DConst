@@ -91,23 +91,23 @@ class DiffGaussian(Rasterizer):
             debug=False,
         )
         
-        raster_settings_2 = GaussianRasterizationSettings(
-            image_height=64,
-            image_width=64,
-            tanfovx=tanfovx,
-            tanfovy=tanfovy,
-            bg=bg_color,
-            scale_modifier=0.2,
-            viewmatrix=viewpoint_camera.world_view_transform,
-            projmatrix=viewpoint_camera.full_proj_transform,
-            sh_degree=pc.active_sh_degree,
-            campos=viewpoint_camera.camera_center,
-            prefiltered=False,
-            debug=False,
-        )
+        # raster_settings_2 = GaussianRasterizationSettings(
+        #     image_height=64,
+        #     image_width=64,
+        #     tanfovx=tanfovx,
+        #     tanfovy=tanfovy,
+        #     bg=bg_color,
+        #     scale_modifier=0.2,
+        #     viewmatrix=viewpoint_camera.world_view_transform,
+        #     projmatrix=viewpoint_camera.full_proj_transform,
+        #     sh_degree=pc.active_sh_degree,
+        #     campos=viewpoint_camera.camera_center,
+        #     prefiltered=False,
+        #     debug=False,
+        # )
 
         rasterizer = GaussianRasterizer(raster_settings=raster_settings)
-        rasterizer_2 =  GaussianRasterizer(raster_settings=raster_settings_2)
+        # rasterizer_2 =  GaussianRasterizer(raster_settings=raster_settings_2)
 
         means3D = pc.get_xyz
         means2D = screenspace_points
@@ -142,7 +142,7 @@ class DiffGaussian(Rasterizer):
         # import pdb; pdb.set_trace()
 
         # Rasterize visible Gaussians to image, obtain their radii (on screen).
-        result_list = rasterizer(
+        rendered_image, radii, rendered_depth, rendered_alpha = rasterizer(
             means3D=means3D,
             means2D=means2D,
             shs=shs,
@@ -152,6 +152,8 @@ class DiffGaussian(Rasterizer):
             rotations=rotations,
             cov3D_precomp=cov3D_precomp,
         )
+        
+        # import pdb; pdb.set_trace()
                 
         # var_mul = 2.5
         
@@ -209,7 +211,7 @@ class DiffGaussian(Rasterizer):
         #     cov3D_precomp=cov3D_precomp,
         # )
         
-        rendered_image, radii = result_list[0], result_list[1]
+        # rendered_image, radii = result_list[0], result_list[1]
         
         noise_image = None
         
@@ -223,6 +225,7 @@ class DiffGaussian(Rasterizer):
         # They will be excluded from value updates used in the splitting criteria.
         return {
             "render": rendered_image.clamp(0, 1),
+            "depth": rendered_depth,
             "noise_render": rendered_image.clamp(0, 1),
             "viewspace_points": screenspace_points,
             "visibility_filter": radii > 0,

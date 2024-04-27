@@ -106,8 +106,6 @@ class ProlificDreamer(BaseLift3DSystem):
             if name.startswith("loss_"):
                 loss += value * self.C(self.cfg.loss[name.replace("loss_", "lambda_")])
 
-        import pdb; pdb.set_trace()
-
         if self.cfg.stage == "coarse":
             if self.C(self.cfg.loss.lambda_orient) > 0:
                 if "normal" not in out:
