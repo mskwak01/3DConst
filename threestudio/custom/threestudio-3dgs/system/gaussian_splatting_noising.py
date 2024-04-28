@@ -14,7 +14,8 @@ from torch.cuda.amp import autocast
 
 from ..geometry.gaussian import BasicPointCloud, Camera
 
-from threestudio.systems.pc_project import point_e, render_depth_from_cloud, render_noised_cloud, render_upscaled_noised_cloud, reprojector
+from threestudio.systems.pc_project import point_e, render_depth_from_cloud, render_noised_cloud, render_upscaled_noised_cloud
+from threestudio.systems.point_noising import reprojector, pts_noise_upscaler, sphere_pts_generator
 from threestudio.systems.pytorch3d.renderer import PointsRasterizationSettings
 
 from torchvision.utils import save_image
@@ -28,6 +29,7 @@ class GaussianSplatting(BaseLift3DSystem):
         back_ground_color: Tuple[float, float, float] = (1, 1, 1)
         threefuse: bool = True
         image_dir: str = "hello"
+        tag: str = "no_tag"
         gaussian_dynamic : bool = False
         calibration_value: int = 0
         three_noise: bool = False
@@ -39,13 +41,15 @@ class GaussianSplatting(BaseLift3DSystem):
         cons_noise_alter: int = 0
         pts_radius: float = 0.02
         surf_radius: float = 0.05
-        tag: str = "no_tag"
         gradient_masking: bool = False
         nearby_fusing: bool = False
         three_warp_noise: bool = False
         consider_depth: bool = True
         gau_d_cond: bool = True
         n_pts_upscaling: int = 9
+        pytorch_three: bool = False
+        noise_alter_interval: int = 10
+        background_rand: str = "random"
 
     cfg: Config
 
@@ -73,31 +77,18 @@ class GaussianSplatting(BaseLift3DSystem):
             self.cfg.prompt_processor
         )
         self.prompt_utils = self.prompt_processor()
-        
-        # Point-e initialization
-        # if self.threefuse is True:
-        
-        # canvas = torch.zeros(1,512,512)
-        # canvas[0,20,430] = 1.
-        # canvas[0,420,230] = 1.
-        # canvas[0,154,433] = 1.
-        # canvas[0,254,500] = 1.
-        
-        
-        # import pdb; pdb.set_trace()
             
         self.cond_pc = point_e(device="cuda", exp_dir=self.image_dir)
-        self.calibration_value = self.cfg.calibration_value
-        
-        self.c_noise = None
-        self.i_noise = None
-        
+        self.calibration_value = self.cfg.calibration_value    
         pcd = self.pcb()
     
         self.geometry.create_from_pcd(pcd, 10)
         self.geometry.training_setup()
         
-        self.noise_tensor = None
+        self.noise_pts = None
+        self.noise_vals = None
+        self.background_noise_pts = None
+        self.background_noise_vals = None
             
 
     def configure_optimizers(self):
@@ -128,9 +119,6 @@ class GaussianSplatting(BaseLift3DSystem):
         depths = []
         masks = []
         noise_image = []
-        # back_noise = []
-        
-        # import pdb; pdb.set_trace()
         
         for batch_idx in range(bs):
             batch["batch_idx"] = batch_idx
@@ -188,9 +176,7 @@ class GaussianSplatting(BaseLift3DSystem):
         cam_radius = batch["camera_distances"]
                    
         depth_maps = render_depth_from_cloud(points, batch, raster_settings, cam_radius, device, dynamic_points=self.gaussian_dynamic, cali=90)
-        
-        # import pdb; pdb.set_trace()
-        
+                
         ### Disparity Calculation
         
         if self.cfg.gau_d_cond:
@@ -219,108 +205,9 @@ class GaussianSplatting(BaseLift3DSystem):
     
             depth_map = norm_disparity.repeat(1,3,1,1).permute(0,2,3,1).detach()
             
-            # import pdb; pdb.set_trace()
-            # depth_maps = gau_depths / torch.amax(gau_depths, dim=(2,3))[...,None,None]
-                    
         else:
             depth_map = depth_maps.permute(0,2,3,1).detach()
-        
-
-        ################### NOISE #############
-        
-        device = self.device
-        
-        if self.cfg.three_warp_noise:
-            pts_per_pix = 50
-            pts_radius = self.cfg.pts_radius
-            surf_radius = self.cfg.surf_radius
-            
-        else:
-            pts_per_pix = 2
-            pts_radius = self.cfg.pts_radius
-            surf_radius = 0.08                
-        
-
-        noise_raster_settings = PointsRasterizationSettings(
-                image_size= 64,
-                radius = pts_radius,
-                points_per_pixel = pts_per_pix
-            )
-        
-        up_noise_raster_settings = noise_raster_settings
-                        
-        surface_raster_settings = PointsRasterizationSettings(
-            image_size= 64,
-            radius = surf_radius,
-            points_per_pixel = 2
-        )
-        
-        
-
-        noise_channel = 4
-
-        
-        id_tensor = None
-        
-        # import pdb; pdb.set_trace()
-        
-        # noised_maps, loc_tensor, inter_dict, depth_masks = render_noised_cloud(points, batch, noise_tensor, noise_raster_settings, surface_raster_settings, noise_channel, cam_radius, device, 
-        #                     dynamic_points=self.gaussian_dynamic, cali=90, identical_noising=self.cfg.identical_noising)
-        
-        if self.noise_tensor is None:
-            num_points = points.shape[0]
-            
-            self.noise_tensor = torch.randn(num_points, noise_channel).to(self.device)
-            self.loc_rand = torch.randn(num_points, 3, self.cfg.n_pts_upscaling)
-            self.feat_rand = torch.randn(num_points, 4, self.cfg.n_pts_upscaling)
-        
-        noise_tensor = self.noise_tensor
-        loc_rand = self.loc_rand
-        feat_rand = self.feat_rand        
-            
-        # if not self.cfg.three_warp_noise:
-        #     noised_maps, loc_tensor, inter_dict, depth_masks = render_noised_cloud(points, batch, noise_tensor, noise_raster_settings, surface_raster_settings, noise_channel, cam_radius, device, 
-        #                                 dynamic_points=self.gaussian_dynamic, cali=90, identical_noising=self.cfg.identical_noising)
-
-        #     noise_map = noised_maps
-            
-        # else:
-        #     noised_maps, loc_tensor, inter_dict, depth_masks = render_upscaled_noised_cloud(points, 
-        #                                                                                     batch, 
-        #                                                                                     noise_tensor, 
-        #                                                                                     surface_raster_settings, 
-        #                                                                                     up_noise_raster_settings, 
-        #                                                                                     noise_channel, 
-        #                                                                                     cam_radius, 
-        #                                                                                     device, 
-        #                                                                                     cali=90, 
-        #                                                                                     dynamic_points=self.gaussian_dynamic, 
-        #                                                                                     identical_noising=self.cfg.identical_noising, 
-        #                                                                                     consider_depth=self.cfg.consider_depth, 
-        #                                                                                     loc_rand=loc_rand, 
-        #                                                                                     feat_rand=feat_rand,
-        #                                                                                     n_upscaling=self.cfg.n_pts_upscaling)
-        #     noise_map = noised_maps         
-            
-        # F.interpolate
-        
-        with torch.no_grad():
-            surf_map = render_depth_from_cloud(points, batch, surface_raster_settings, cam_radius, device, dynamic_points=self.gaussian_dynamic, cali=90, raw=True)
-            
-            hey = reprojector(points, self.noise_tensor, batch['c2w'], torch.linalg.inv(batch['c2w']), batch["fovy"], self.device, ref_depth=surf_map)
-
-        
-        
-        noised_maps = F.interpolate(noised_maps, size=(64,64), mode='nearest')
-        init_image = F.interpolate(noised_maps, size=(512,512), mode='nearest')
-        
-        depth_map = init_image[:,:3].permute(0,2,3,1)
-        
-        
-        #######################################
-
-        # import pdb; pdb.set_trace()
-
+    
         
         outputs = {
             "comp_rgb": torch.stack(renders, dim=0).permute(0, 2, 3, 1),
@@ -353,6 +240,8 @@ class GaussianSplatting(BaseLift3DSystem):
             
         out = self(batch)
         
+        iteration = self.global_step
+        
         noise_channel = 4
         
         if self.threefuse:
@@ -367,7 +256,7 @@ class GaussianSplatting(BaseLift3DSystem):
                     
                 # Change it to dynamic
                 device = self.device
-                
+            
                 if self.cfg.three_warp_noise:
                     pts_per_pix = 20
                     pts_radius = self.cfg.pts_radius
@@ -392,95 +281,89 @@ class GaussianSplatting(BaseLift3DSystem):
                     radius = surf_radius,
                     points_per_pixel = 2
                 )
-                                
-                                
+            
                 cam_radius = batch["camera_distances"]
                 depth_maps = out["pts_depth"].permute(0,3,1,2)
-                
-                # import pdb; pdb.set_trace()
-                
-                if self.three_noise:
-                    if not self.cfg.three_warp_noise:
-                        noised_maps, loc_tensor, inter_dict, depth_masks = render_noised_cloud(points, batch, noise_tensor, noise_raster_settings, surface_raster_settings, noise_channel, cam_radius, device, 
-                                                    dynamic_points=self.gaussian_dynamic, cali=90, identical_noising=self.cfg.identical_noising)
-        
-                        noise_map = noised_maps
-                        
-                    else:                        
-                        noise_tensor = self.noise_tensor
-                        loc_rand = self.loc_rand
-                        feat_rand = self.feat_rand       
-                        
-                        noised_maps, loc_tensor, inter_dict, depth_masks = render_upscaled_noised_cloud(points, 
-                                                                                                        batch, 
-                                                                                                        noise_tensor, 
-                                                                                                        surface_raster_settings, 
-                                                                                                        up_noise_raster_settings, 
-                                                                                                        noise_channel, 
-                                                                                                        cam_radius, 
-                                                                                                        device, 
-                                                                                                        cali=90, 
-                                                                                                        dynamic_points=self.gaussian_dynamic, 
-                                                                                                        identical_noising=self.cfg.identical_noising, 
-                                                                                                        consider_depth=self.cfg.consider_depth, 
-                                                                                                        loc_rand=loc_rand, 
-                                                                                                        feat_rand=feat_rand,
-                                                                                                        n_upscaling=self.cfg.n_pts_upscaling)
-                        noise_map = noised_maps         
-                        
+            
+                if self.cfg.pytorch_three:
                     
-                elif self.gs_noise:
-                    obj_noise = out["noise_image"].permute(0,3,1,2)
-                    
-                    if self.obj_only:
-                        noise_map = obj_noise
+                    if self.three_noise:
+                        if not self.cfg.three_warp_noise:
+                            noised_maps, loc_tensor, inter_dict, depth_masks = render_noised_cloud(points, batch, noise_tensor, noise_raster_settings, surface_raster_settings, noise_channel, cam_radius, device, 
+                                                        dynamic_points=self.gaussian_dynamic, cali=90, identical_noising=self.cfg.identical_noising)
+            
+                            noise_map = noised_maps
+                            
+                        else:                        
+                            noise_tensor = self.noise_tensor
+                            loc_rand = self.loc_rand
+                            feat_rand = self.feat_rand       
+                            
+                            noised_maps, loc_tensor, inter_dict, depth_masks = render_upscaled_noised_cloud(points, 
+                                                                                                            batch, 
+                                                                                                            noise_tensor, 
+                                                                                                            surface_raster_settings, 
+                                                                                                            up_noise_raster_settings, 
+                                                                                                            noise_channel, 
+                                                                                                            cam_radius, 
+                                                                                                            device, 
+                                                                                                            cali=90, 
+                                                                                                            dynamic_points=self.gaussian_dynamic, 
+                                                                                                            identical_noising=self.cfg.identical_noising, 
+                                                                                                            consider_depth=self.cfg.consider_depth, 
+                                                                                                            loc_rand=loc_rand, 
+                                                                                                            feat_rand=feat_rand,
+                                                                                                            n_upscaling=self.cfg.n_pts_upscaling)
+                            noise_map = noised_maps         
+                            
+                        
+                    elif self.gs_noise:
+                        obj_noise = out["noise_image"].permute(0,3,1,2)
+                        
+                        if self.obj_only:
+                            noise_map = obj_noise
+                        else:
+                            back_noise = (obj_noise == 0.) * torch.randn_like(obj_noise)
+                            noise_map = obj_noise + back_noise
+                        
+                        loc_tensor = None
+                        inter_dict = None
+                        
                     else:
-                        back_noise = (obj_noise == 0.) * torch.randn_like(obj_noise)
-                        noise_map = obj_noise + back_noise
-                    
-                    # import pdb; pdb.set_trace()
-                    loc_tensor = None
-                    inter_dict = None
+                        noise_map = None
+                        loc_tensor = None
+                        inter_dict = None
+                                    
+                    if self.cfg.gradient_masking is False:
+                        depth_masks = None
                     
                 else:
-                    noise_map = None
+                    if self.noise_tensor is None or iteration % self.cfg.noise_alter_interval == 0:
+                        num_points = points.shape[0]
+                        
+                        self.noise_tensor = torch.randn(num_points, 4).to(self.device)
+                        self.loc_rand = torch.randn(num_points, 3, self.cfg.n_pts_upscaling)
+                        self.feat_rand = torch.randn(num_points, 4, self.cfg.n_pts_upscaling)
+                        
+                        self.pts, self.noise = pts_noise_upscaler(points, self.noise_tensor, self.cfg.n_pts_upscaling, self.loc_rand, self.feat_rand, self.device)
+                                            
+                    surf_map = render_depth_from_cloud(points, batch, surface_raster_settings, cam_radius, device, dynamic_points=self.gaussian_dynamic, cali=90, raw=True)           
+                    noised_maps = reprojector(self.pts, self.noise, batch['c2w'], torch.linalg.inv(batch['c2w']), batch["fovy"], self.device, ref_depth=surf_map)
+
                     loc_tensor = None
                     inter_dict = None
-                                 
-                if self.cfg.gradient_masking is False:
-                    depth_masks = None
-                    
+                             
             guidance_inp = out["comp_rgb"]     
-            
-            # if self.multidiffusion:            
-            
-            # import pdb; pdb.set_trace()
                            
             guidance_out = self.guidance(
                 guidance_inp, self.prompt_utils, **batch, depth_map=depth_maps,  noise_map=noise_map, rgb_as_latents=False, 
                 idx_map=loc_tensor, inter_dict=inter_dict
             )
-            
-            guidance_out = self.guidance(guidance_inp, self.prompt_utils, **batch, depth_map=depth_maps,  noise_map=noise_map, rgb_as_latents=False, idx_map=loc_tensor, inter_dict=inter_dict)
-        
+                    
         else:
             with torch.no_grad():
                 points = self.geometry._xyz
-                                
-                if self.constant_noising:
-                    if self.c_noise is None or self.global_step % self.cfg.cons_noise_alter == 1:
-                        # import pdb; pdb.set_trace()
-                        self.c_noise = torch.randn(points.shape[0], noise_channel).to(self.device)
-                        self.i_noise = torch.randn(points.shape[0], noise_channel).to(self.device)
-                        noise_tensor = self.c_noise
-                        id_tensor = self.i_noise
-                    else:
-                        noise_tensor = self.c_noise
-                        id_tensor = self.i_noise
-                                        
-                else:
-                    noise_tensor = torch.randn(points.shape[0], noise_channel).to(self.device)
-                    id_tensor = None
+                id_tensor = None
                                 
                 device = self.device
                 
@@ -511,69 +394,104 @@ class GaussianSplatting(BaseLift3DSystem):
                 
                 cam_radius = batch["camera_distances"]
                 depth_maps = out["pts_depth"].permute(0,3,1,2)                
-                # import pdb; pdb.set_trace()
                 
                 ############
-    
-                if self.three_noise:
-                    if self.cfg.nearby_fusing:
-                        viewcomp_setting = "penta"
-                    else:
-                        viewcomp_setting = "all_views"
+                
+                if self.cfg.pytorch_three:
                     
-                    if not self.cfg.three_warp_noise:
-                        noised_maps, loc_tensor, inter_dict, depth_masks = render_noised_cloud(points, batch, noise_tensor, noise_raster_settings, surface_raster_settings, noise_channel, cam_radius, device, 
-                                    dynamic_points=self.gaussian_dynamic, cali=90, identical_noising=self.cfg.identical_noising, id_tensor=id_tensor, viewcomp_setting=viewcomp_setting)
-                        noise_map = noised_maps
-
-                    else:                        
-                        noise_tensor = self.noise_tensor
-                        loc_rand = self.loc_rand
-                        feat_rand = self.feat_rand       
+                    if self.three_noise:
                         
-                        noised_maps, loc_tensor, inter_dict, depth_masks = render_upscaled_noised_cloud(points, 
-                                                                                                        batch, 
-                                                                                                        noise_tensor, 
-                                                                                                        surface_raster_settings, 
-                                                                                                        up_noise_raster_settings, 
-                                                                                                        noise_channel, 
-                                                                                                        cam_radius, 
-                                                                                                        device, 
-                                                                                                        cali=90, 
-                                                                                                        dynamic_points=self.gaussian_dynamic, 
-                                                                                                        identical_noising=self.cfg.identical_noising, 
-                                                                                                        consider_depth=self.cfg.consider_depth, 
-                                                                                                        loc_rand=loc_rand, 
-                                                                                                        feat_rand=feat_rand,
-                                                                                                        n_upscaling=self.cfg.n_pts_upscaling)
-                        noise_map = noised_maps                                          
-                    
-                                        
-                elif self.cfg.cons_noise_alter != 0:
-                    if self.global_step % self.cfg.cons_noise_alter == 1:
-                        self.c_noise = torch.randn(6,4,64,64).to(self.device)
-                        noise_map = self.c_noise
-                    else:
-                        noise_map = self.c_noise
-                        
-                    loc_tensor = None
-                    inter_dict = None
-                    depth_masks = None
-                    # fin_noise = noise_maps_tensor.permute(0,3,1,2)
+                        noise_tensor = torch.randn(points.shape[0], noise_channel).to(self.device)
 
-                else:
-                    noise_map = None
-                    loc_tensor = None
-                    inter_dict = None
-                    depth_masks = None
-                    
-                if self.cfg.gradient_masking is False:
-                    depth_masks = None
-            
-            # import pdb; pdb.set_trace()
+                        if self.cfg.nearby_fusing:
+                            viewcomp_setting = "penta"
+                        else:
+                            viewcomp_setting = "all_views"
+                        
+                        if not self.cfg.three_warp_noise:
+                            noised_maps, loc_tensor, inter_dict, depth_masks = render_noised_cloud(points, batch, noise_tensor, noise_raster_settings, surface_raster_settings, noise_channel, cam_radius, device, 
+                                        dynamic_points=self.gaussian_dynamic, cali=90, identical_noising=self.cfg.identical_noising, id_tensor=id_tensor, viewcomp_setting=viewcomp_setting)
+                            noise_map = noised_maps
+
+                        else:                        
+                            noise_tensor = self.noise_tensor
+                            loc_rand = self.loc_rand
+                            feat_rand = self.feat_rand       
                             
+                            noised_maps, loc_tensor, inter_dict, depth_masks = render_upscaled_noised_cloud(points, 
+                                                                                                            batch, 
+                                                                                                            noise_tensor, 
+                                                                                                            surface_raster_settings, 
+                                                                                                            up_noise_raster_settings, 
+                                                                                                            noise_channel, 
+                                                                                                            cam_radius, 
+                                                                                                            device, 
+                                                                                                            cali=90, 
+                                                                                                            dynamic_points=self.gaussian_dynamic, 
+                                                                                                            identical_noising=self.cfg.identical_noising, 
+                                                                                                            consider_depth=self.cfg.consider_depth, 
+                                                                                                            loc_rand=loc_rand, 
+                                                                                                            feat_rand=feat_rand,
+                                                                                                            n_upscaling=self.cfg.n_pts_upscaling)
+                            noise_map = noised_maps                                          
+                        
+                                            
+                    elif self.cfg.cons_noise_alter != 0:
+                        if self.global_step % self.cfg.cons_noise_alter == 1:
+                            self.c_noise = torch.randn(6,4,64,64).to(self.device)
+                            noise_map = self.c_noise
+                        else:
+                            noise_map = self.c_noise
+                            
+                        loc_tensor = None
+                        inter_dict = None
+                        depth_masks = None
+                        # fin_noise = noise_maps_tensor.permute(0,3,1,2)
+
+                    else:
+                        noise_map = None
+                        loc_tensor = None
+                        inter_dict = None
+                        depth_masks = None
+                        
+                    if self.cfg.gradient_masking is False:
+                        depth_masks = None
+                        
+                elif self.cfg.pytorch_three is False:
+                    if self.noise_pts is None or iteration % self.cfg.noise_alter_interval == 0:
+                        num_points = points.shape[0]
+                        
+                        noise_tensor = torch.randn(num_points, 4).to(self.device)
+                        loc_rand = torch.randn(num_points, 3, self.cfg.n_pts_upscaling)
+                        feat_rand = torch.randn(num_points, 4, self.cfg.n_pts_upscaling)
+                        
+                        self.noise_pts, self.noise_vals = pts_noise_upscaler(points, noise_tensor, self.cfg.n_pts_upscaling, loc_rand, feat_rand, self.device)
+                        
+                        if self.cfg.background_rand == "ball":
+                            self.background_noise_pts, self.background_noise_vals = sphere_pts_generator(self.device)
+   
+                    surf_map = render_depth_from_cloud(points, batch, surface_raster_settings, cam_radius, device, dynamic_points=self.gaussian_dynamic, cali=90, raw=True)           
+                    fore_noise_maps = reprojector(self.noise_pts, self.noise_vals, batch['c2w'], torch.linalg.inv(batch['c2w']), batch["fovy"], self.device, ref_depth=surf_map).nan_to_num()
+
+                    if self.cfg.background_rand == "random":
+                        back_mask = (fore_noise_maps == 0.).float()
+                        noise_map = back_mask * torch.randn_like(fore_noise_maps) + fore_noise_maps
+                        
+                    elif self.cfg.background_rand == "ball":                        
+                        back_noise_maps = reprojector(self.background_noise_pts, self.background_noise_vals, batch['c2w'], torch.linalg.inv(batch['c2w']), batch["fovy"], self.device, img_size=64, background=True).nan_to_num()                        
+                        back_mask = (fore_noise_maps == 0.).float()
+                        noise_map = back_mask * back_noise_maps + fore_noise_maps
+                                            
+                    else:
+                        print("Background option not implemented yet!!")
+                    
+                    loc_tensor = None
+                    inter_dict = None
+                    depth_masks = None
+                    
+                                                
             guidance_inp = out["comp_rgb"]  
-            
+                        
             if self.cfg.nearby_fusing:
                 grad_setting = "penta"
             
@@ -648,8 +566,6 @@ class GaussianSplatting(BaseLift3DSystem):
             )
             self.log(f"train/loss_depth_tv", loss_depth_tv)
             loss += loss_depth_tv
-
-        # import pdb; pdb.set_trace()
 
         for name, value in self.cfg.loss.items():
             self.log(f"train_params/{name}", self.C(value))
@@ -817,18 +733,12 @@ class GaussianSplatting(BaseLift3DSystem):
         
         coords,rgb,scale = self.shape()
         all_coords, all_rgb = self.add_points(coords,rgb)
-        
-        # import pdb; pdb.set_trace()
-        
+                
         # matching_rotation = torch.tensor([[[1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, -1.0, 0.0]]], dtype=torch.float32).to(self.device)
         # all_coords = (matching_rotation[0] @ all_coords[...,None]).squeeze()
         
-        # all_coords
-        
         fin_rgb = 0.4 * torch.ones_like(torch.tensor(all_rgb)).to(self.device)
-        
-        # calibration_value = 180
-        
+                
         deg = torch.deg2rad(torch.tensor([self.calibration_value]))
         rot_z = torch.tensor([[torch.cos(deg), -torch.sin(deg), 0],[torch.sin(deg), torch.cos(deg), 0],[0, 0, 1.]]).to(self.device)
         fin_coords = (rot_z[None,...] @ all_coords[...,None]).squeeze()

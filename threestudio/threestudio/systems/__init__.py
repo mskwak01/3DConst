@@ -13,6 +13,7 @@ from . import (
     zero123,
     zero123_simple,
     pc_project,
+    point_noising,
     prolificdreamer_noise,
     dreamfusion_noise,
     noise_covariance
