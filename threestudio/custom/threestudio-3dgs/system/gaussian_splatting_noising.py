@@ -207,6 +207,42 @@ class GaussianSplatting(BaseLift3DSystem):
             
         else:
             depth_map = depth_maps.permute(0,2,3,1).detach()
+            
+        #########
+        with torch.no_grad():
+            surface_raster_settings = PointsRasterizationSettings(
+                    image_size= 64,
+                    radius = self.cfg.surf_radius,
+                    points_per_pixel = 2
+                )
+            
+            if self.noise_pts is None:
+                num_points = points.shape[0]
+                
+                noise_tensor = torch.randn(num_points, 4).to(self.device)
+                loc_rand = torch.randn(num_points, 3, self.cfg.n_pts_upscaling)
+                feat_rand = torch.randn(num_points, 4, self.cfg.n_pts_upscaling)
+                
+                self.noise_pts, self.noise_vals = pts_noise_upscaler(points, noise_tensor, self.cfg.n_pts_upscaling, loc_rand, feat_rand, self.device)
+                
+                if self.cfg.background_rand == "ball":
+                    self.background_noise_pts, self.background_noise_vals = sphere_pts_generator(self.device)
+
+            surf_map = render_depth_from_cloud(points, batch, surface_raster_settings, cam_radius, device, dynamic_points=self.gaussian_dynamic, cali=90, raw=True)           
+            fore_noise_maps = reprojector(self.noise_pts, self.noise_vals, batch['c2w'], torch.linalg.inv(batch['c2w']), batch["fovy"], self.device, ref_depth=surf_map).nan_to_num()
+
+            if self.cfg.background_rand == "random":
+                back_mask = (fore_noise_maps == 0.).float()
+                noise_map = back_mask * torch.randn_like(fore_noise_maps) + fore_noise_maps
+                
+            elif self.cfg.background_rand == "ball":                        
+                back_noise_maps = reprojector(self.background_noise_pts, self.background_noise_vals, batch['c2w'], torch.linalg.inv(batch['c2w']), batch["fovy"], self.device, img_size=64, background=True).nan_to_num()                        
+                back_mask = (fore_noise_maps == 0.).float()
+                noise_map = back_mask * back_noise_maps + fore_noise_maps
+                
+
+            depth_map = F.interpolate(noise_map, size=(512,512), mode='nearest')[:,:3].permute(0,2,3,1)
+        #########
     
         
         outputs = {

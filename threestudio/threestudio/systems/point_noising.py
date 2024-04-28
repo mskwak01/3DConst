@@ -82,9 +82,14 @@ def one_to_one_rasterizer(pts_proj_pix, pts_feats, pts_depth, device, ref_depth=
         
     if background:
         pts_per_pix = 100
+        
+        # import pdb; pdb.set_trace()
+
         inview_mask = ((pts_proj_pix[...,0] >= 0) * (pts_proj_pix[...,0] < img_size) * (pts_proj_pix[...,1] >= 0) * (pts_proj_pix[...,1] < img_size)).float()
+        
         pts_proj_pix = inview_mask[...,None] * pts_proj_pix
         pts_final_feats = inview_mask[...,None] * pts_feats[None,...].repeat(batch_size,1,1) 
+        # pts_final_feats = pts_feats[None,...].repeat(batch_size,1,1)
     
     else:
         pts_final_feats = pts_feats[None,...].repeat(batch_size,1,1)
@@ -127,6 +132,7 @@ def one_to_one_rasterizer(pts_proj_pix, pts_feats, pts_depth, device, ref_depth=
             feature_maps.append(fin_feat)
         
         else:
+            # import pdb; pdb.set_trace()
             pix_num_pts = (canv[...,3] != 0).float().sum(dim=-1)
             fin_feat = canv[...,2:].sum(dim=-2) / torch.sqrt(pix_num_pts[...,None])
             feature_maps.append(fin_feat)
@@ -167,7 +173,7 @@ def sphere_pts_generator(device, radius = 1.9, orig_down_ratio=3, upscale_ratio=
     # Locations
 
     init_horz_rads = torch.deg2rad(torch.linspace(start= 0, end=360-1, steps = 360 // orig_down_ratio)).to(device)
-    init_elev_rads = torch.deg2rad(torch.linspace(start= -89, end=89, steps = num_elev_rads // orig_down_ratio)).to(device)
+    init_elev_rads = torch.deg2rad(torch.linspace(start= 0, end=180, steps = num_elev_rads // orig_down_ratio)).to(device)
     
     horz_step = init_horz_rads[1] - init_horz_rads[0]
     elev_step = init_elev_rads[1] - init_elev_rads[0]

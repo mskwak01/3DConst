@@ -2,7 +2,7 @@ prompts=(
     "a zoomed out DSLR photo of a ceramic lion, white background"
     # "a peacock with a crown"
     # "a mysterious LEGO wizard"
-    # "a product photo of cat-shaped toy"
+    "a product photo of cat-shaped toy"
     # "a DSLR photo of an ironman figure"
 )
 
@@ -10,7 +10,7 @@ img_dirs=(
     "/home/cvlab15/project/woojeong/wj_threestudio/images/a_ceramic_lion.png"
     # "/home/cvlab15/project/woojeong/naver/images/peacock.png"
     # "/home/cvlab15/project/woojeong/naver/images/lego-wizard2.png"
-    # "/home/cvlab15/project/woojeong/naver/images/cat-toy.png"
+    "/home/cvlab15/project/woojeong/naver/images/cat-toy.png"
     # "/home/cvlab15/project/naver_diffusion/matthew/matt_threestudio/threestudio/threestudio/images/ironman.png"
 )
 
@@ -18,7 +18,7 @@ cal_vals=(
     90
     # 90
     # 90
-    # 75
+    75
     # 90   
 )
 
@@ -28,7 +28,7 @@ python launch.py \
     --config custom/threestudio-3dgs/configs/gau_stable_diffusion.yaml \
     --train \
     --gpu 2 \
-    system.tag="testerrrrrrr" \
+    system.tag="back_noise_visualizer" \
     system.pytorch_three=false \
     data.num_multiview=1 \
     system.prompt_processor.prompt="${prompts[i]}" \
