@@ -41,7 +41,8 @@ class DiffGaussian(Rasterizer):
     def forward(
         self,
         viewpoint_camera,
-        bg_color: torch.Tensor,
+        bg_color: torch.Tensor,        
+        back_var = None,
         scaling_modifier=1.0,
         override_color=None,
         **kwargs
@@ -52,8 +53,10 @@ class DiffGaussian(Rasterizer):
         Background tensor (bg_color) must be on GPU!
         """
 
-        if self.training:
+        if self.training and back_var is None:
             invert_bg_color = np.random.rand() > self.cfg.invert_bg_prob
+        elif self.training and back_var is not None:
+            invert_bg_color = True if back_var==0 else False
         else:
             invert_bg_color = True
 

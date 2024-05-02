@@ -12,7 +12,7 @@ from torchvision.transforms import ToPILImage
 
 
 
-def reprojector(pts_locations, pts_feats, target_pose, target_pose_inv, fovy, device, ref_depth=None, img_size=64, background=False):
+def reprojector(pts_locations, pts_feats, target_pose, target_pose_inv, fovy, device, ref_depth=None, img_size=64, background=False, **kwargs):
     """
     Inverse
     Source: Unseen view
@@ -69,19 +69,33 @@ def reprojector(pts_locations, pts_feats, target_pose, target_pose_inv, fovy, de
     proj_loc = projected_loc_norm * (img_size / 2) + (img_size / 2)
     
     proj_pix = proj_loc.floor()
+        
+    feature_maps, idx_maps = one_to_one_rasterizer(proj_pix, pts_feats, dist_to_tgt_origin, device, ref_depth, img_size=img_size, background=background, **kwargs)
     
-    feature_maps = one_to_one_rasterizer(proj_pix, pts_feats, dist_to_tgt_origin, device, ref_depth, img_size=img_size, background=background)
+    if idx_maps is None:
+        reprojection_results = feature_maps
+    else:
+        reprojection_results = (feature_maps, proj_pix.int(), idx_maps)
     
-    return feature_maps
+    return reprojection_results
     
 
 
-def one_to_one_rasterizer(pts_proj_pix, pts_feats, pts_depth, device, ref_depth=None, img_size=64, pts_per_pix=5000, pts_thresh=0.3, background=True):
+def one_to_one_rasterizer(pts_proj_pix, pts_feats, pts_depth, device, ref_depth=None, img_size=64, pts_per_pix=5000, pts_thresh=0.3, background=True, **kwargs):
         
     batch_size, num_pts = pts_depth.shape[0], pts_depth.shape[1]
         
+    if "reprojection_info" in kwargs:
+        return_reproj_info = kwargs["reprojection_info"]
+        pix_key = torch.linspace(0, img_size **2 -1, steps=img_size**2).int()
+        idx_map_stack = []
+        
+    else:
+        return_reproj_info = False
+
+        
     if background:
-        pts_per_pix = 100
+        pts_per_pix = 500
         
         # import pdb; pdb.set_trace()
 
@@ -93,7 +107,7 @@ def one_to_one_rasterizer(pts_proj_pix, pts_feats, pts_depth, device, ref_depth=
     
     else:
         pts_final_feats = pts_feats[None,...].repeat(batch_size,1,1)
-            
+                    
     idx_num = torch.linspace(0,num_pts-1,steps=num_pts)[None,...,None].repeat(batch_size,1,1).to(device)
     rasterizer_info = torch.cat((pts_depth, idx_num, pts_final_feats),dim=-1)
     rast_bin = torch.linspace(0,pts_per_pix-1,steps=pts_per_pix).repeat(num_pts // pts_per_pix + 1)[:num_pts].int().to(device)
@@ -104,7 +118,7 @@ def one_to_one_rasterizer(pts_proj_pix, pts_feats, pts_depth, device, ref_depth=
     x_coords = pts_proj_pix[...,1]
     
     feature_maps = []
-    
+        
     # pix_key = torch.linspace(0, img_size **2 -1, steps=img_size**2)[...,None].repeat(1, pts_per_pix).int().flatten().to(device)
         
     for i in range(batch_size):
@@ -120,6 +134,14 @@ def one_to_one_rasterizer(pts_proj_pix, pts_feats, pts_depth, device, ref_depth=
         
         ######################## --------------------------------------
         
+        if return_reproj_info:
+            res_canv = canv.reshape(-1, pts_per_pix, 6)
+            depth_key = torch.min(res_canv[...,0], dim=-1)[1].flatten()
+            idx_map = res_canv[pix_key, depth_key][:,1].reshape(img_size, img_size).int()
+            idx_map_stack.append(idx_map)
+        
+        # import pdb; pdb.set_trace()
+        
         if ref_depth is not None:
         
             depth_mask = (torch.abs(ref_depth[i] - canv[...,0]) < pts_thresh).float()
@@ -132,14 +154,18 @@ def one_to_one_rasterizer(pts_proj_pix, pts_feats, pts_depth, device, ref_depth=
             feature_maps.append(fin_feat)
         
         else:
-            # import pdb; pdb.set_trace()
             pix_num_pts = (canv[...,3] != 0).float().sum(dim=-1)
             fin_feat = canv[...,2:].sum(dim=-2) / torch.sqrt(pix_num_pts[...,None])
             feature_maps.append(fin_feat)
-        
+            
     feat_maps = torch.stack(feature_maps).permute(0,3,1,2)
+    
+    if return_reproj_info:
+        idx_maps = torch.stack(idx_map_stack)
+    else:
+        idx_maps = None
         
-    return feat_maps
+    return feat_maps, idx_maps
 
 
 

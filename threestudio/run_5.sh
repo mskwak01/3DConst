@@ -6,7 +6,7 @@ prompts=(
     "a peacock with a crown"
     "a mysterious LEGO wizard"
     "a product photo of cat-shaped toy"
-    "a DSLR photo of an ironman figure"
+    # "a DSLR photo of an ironman figure"
 )
 
 img_dirs=(
@@ -14,7 +14,7 @@ img_dirs=(
     "/home/cvlab15/project/woojeong/naver/images/peacock.png"
     "/home/cvlab15/project/woojeong/naver/images/lego-wizard2.png"
     "/home/cvlab15/project/woojeong/naver/images/cat-toy.png"
-    "/home/cvlab15/project/naver_diffusion/matthew/matt_threestudio/threestudio/threestudio/images/ironman.png"
+    # "/home/cvlab15/project/naver_diffusion/matthew/matt_threestudio/threestudio/threestudio/images/ironman.png"
 )
 
 cal_vals=(
@@ -22,7 +22,7 @@ cal_vals=(
     90
     90
     75
-    90   
+    # 90   
 )
 
 for i in "${!prompts[@]}";
@@ -30,8 +30,8 @@ do
 python launch.py \
     --config custom/threestudio-3dgs/configs/gau_stable_diffusion.yaml \
     --train \
-    --gpu 6 \
-    system.tag="custom_raster_up9_itv_50_ball_back" \
+    --gpu 3 \
+    system.tag=""FINAL_raster_up9_itv_10_ball_back"" \
     system.pytorch_three=false \
     data.num_multiview=1 \
     system.prompt_processor.prompt="${prompts[i]}" \
@@ -44,7 +44,7 @@ python launch.py \
     system.gau_d_cond=false \
     system.n_pts_upscaling=9 \
     system.background_rand="ball" \
-    system.noise_alter_interval=50 \
+    system.noise_alter_interval=10 \
     data.multiview_deg=20 \
 
 done

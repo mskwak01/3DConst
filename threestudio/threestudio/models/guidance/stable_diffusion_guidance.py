@@ -14,6 +14,9 @@ from threestudio.utils.misc import C, cleanup, parse_version
 from threestudio.utils.ops import perpendicular_component
 from threestudio.utils.typing import *
 
+from torchvision.utils import save_image
+import matplotlib.pyplot as plt
+
 
 @threestudio.register("stable-diffusion-guidance")
 class StableDiffusionGuidance(BaseObject):
@@ -392,6 +395,8 @@ class StableDiffusionGuidance(BaseObject):
         idx_map=None,
         inter_dict=None,
         depth_masks=None,
+        same_timestep=True,
+        consistency_mask=False,
         **kwargs,
     ):
         batch_size = rgb.shape[0]
@@ -409,14 +414,32 @@ class StableDiffusionGuidance(BaseObject):
             # encode image into latents with vae
             latents = self.encode_images(rgb_BCHW_512)
 
-        # timestep ~ U(0.02, 0.98) to avoid very high/low noise level
-        t = torch.randint(
-            self.min_step,
-            self.max_step + 1,
-            [batch_size],
-            dtype=torch.long,
-            device=self.device,
-        )
+        # timestep ~ U(0.02, 0.98) to avoid very high/low noise level            
+        if same_timestep:
+            t = torch.randint(
+                self.min_step,
+                self.max_step + 1,
+                [1],
+                dtype=torch.long,
+                device=self.device,
+            ).repeat(batch_size)
+        
+        else:
+            t = torch.randint(
+                self.min_step,
+                self.max_step + 1,
+                [batch_size],
+                dtype=torch.long,
+                device=self.device,
+            )
+        
+        # import pdb; pdb.set_trace()
+        
+        ###########
+        
+        # t = torch.ones_like(t) * 430
+        
+        ###########
 
         if self.cfg.use_sjc:
             grad, guidance_eval_utils = self.compute_grad_sjc(
@@ -426,15 +449,38 @@ class StableDiffusionGuidance(BaseObject):
             grad, guidance_eval_utils = self.compute_grad_sds(
                 latents, t, prompt_utils, elevation, azimuth, camera_distances, noise_map
             )
+            
+        # grad, guidance_eval_utils = self.compute_grad_sds(latents, t, prompt_utils, elevation, azimuth, camera_distances, noise_map)
 
         grad = torch.nan_to_num(grad)
         # clip grad for stable training?
         if self.grad_clip_val is not None:
             grad = grad.clamp(-self.grad_clip_val, self.grad_clip_val)
+        
+        # import pdb; pdb.set_trace()
+        
+        # save_image 
+        
+        # map = output.cpu().detach().numpy()
+        # plt.imshow(map, cmap='hot')
+        # plt.colorbar()
+        # plt.savefig('new.png')
+        # import pdb; pdb.set_trace()
 
         # loss = SpecifyGradient.apply(latents, grad)
         # SpecifyGradient is not straghtforward, use a reparameterization trick instead
         target = (latents - grad).detach()
+                
+        if consistency_mask:
+            cos = nn.CosineSimilarity(dim=0, eps=1e-6)
+            
+            mask1 = (cos(grad[0], grad[1]) > 0.6).float()
+            mask2 = (cos(grad[2], grad[3]) > 0.6).float()
+            
+            masks = torch.stack((mask1, mask1, mask2, mask2))
+            
+            latents = masks * latents
+            target = masks * target
         
         if depth_masks is not None:
             # import pdb; pdb.set_trace()
