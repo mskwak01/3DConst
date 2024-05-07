@@ -23,10 +23,12 @@ system_type: "gaussian-splatting-noising-system"
 system:
   image_dir: "/home/dreamer/host_files/matthew/matt_threestudio/threestudio/tower.png"
   threefuse: false
+  batch_size: ${data.batch_size}
   three_noise: true
   identical_noising: true
   gaussian_dynamic: true
   geometry_type: "gaussian-splatting"
+  constant_viewpoints: ${data.constant_viewpoints}
   calibration_value: 0
   pts_radius: 0.02
   geometry:

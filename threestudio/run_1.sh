@@ -31,9 +31,10 @@ python launch.py \
     --config custom/threestudio-3dgs/configs/gau_stable_diffusion.yaml \
     --train \
     --gpu 2 \
-    system.tag="custom_raster_up9_itv_50_ball_back" \
+    system.tag="tester_debug" \
+    system.three_noise=true \
     system.pytorch_three=false \
-    data.num_multiview=1 \
+    data.num_multiview=2 \
     system.prompt_processor.prompt="${prompts[i]}" \
     system.image_dir="${img_dirs[i]}" \
     system.calibration_value="${cal_vals[i]}" \
@@ -45,7 +46,13 @@ python launch.py \
     system.n_pts_upscaling=9 \
     system.background_rand="ball" \
     system.noise_alter_interval=10 \
-    data.multiview_deg=20 \
+    system.consistency_mask=false \
+    data.multiview_deg=15 \
+    data.constant_viewpoints=true \
+    data.num_const_views=5 \
+    system.reprojection_info=false \
+    system.guidance.guidance_scale=20 \
+    # trainer.max_steps=50 \
 
 done
 

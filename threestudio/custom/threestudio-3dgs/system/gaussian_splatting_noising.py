@@ -15,7 +15,7 @@ from torch.cuda.amp import autocast
 from ..geometry.gaussian import BasicPointCloud, Camera
 
 from threestudio.systems.pc_project import point_e, render_depth_from_cloud, render_noised_cloud, render_upscaled_noised_cloud
-from threestudio.systems.point_noising import reprojector, pts_noise_upscaler, sphere_pts_generator
+from threestudio.systems.point_noising import reprojector, pts_noise_upscaler, sphere_pts_generator, ray_reprojector
 from threestudio.systems.pytorch3d.renderer import PointsRasterizationSettings
 
 from torchvision.utils import save_image
@@ -52,6 +52,8 @@ class GaussianSplatting(BaseLift3DSystem):
         background_rand: str = "random"
         consistency_mask: bool = False
         reprojection_info: bool = False
+        batch_size: int = 1
+        constant_viewpoints: bool = False
 
     cfg: Config
 
@@ -91,6 +93,8 @@ class GaussianSplatting(BaseLift3DSystem):
         self.noise_vals = None
         self.background_noise_pts = None
         self.background_noise_vals = None
+        
+        self.noise_map_dict = {"fore": {}, "back": {}}
             
 
     def configure_optimizers(self):
@@ -122,8 +126,26 @@ class GaussianSplatting(BaseLift3DSystem):
         masks = []
         noise_image = []
         
+        # import pdb; pdb.set_trace()
+                
+        # if len(torch.unique(batch["idx_keys"][:,0])) != self.cfg.batch_size:
+        #     vis_idx = torch.randperm(batch["idx_keys"][-1,0])[:self.cfg.batch_size]
+        #     num_multiview = batch["idx_keys"][-1,1] + 1
+        #     view_list = [*range(bs)]
+            
+        #     batch_ranges = []
+            
+        #     for i in vis_idx:
+        #         batch_ranges += view_list[i*num_multiview: (i+1)*num_multiview]
+            
+        #     import pdb; pdb.set_trace()
+                    
+        # else:
+        #     batch_ranges = range(bs)
+        
+        
         for batch_idx in range(bs):
-            batch["batch_idx"] = batch_idx
+            # batch["batch_idx"] = batch_idx
             fovy = batch["fovy"][batch_idx]
                         
             w2c, proj, cam_p = get_cam_info_gaussian(
@@ -170,6 +192,8 @@ class GaussianSplatting(BaseLift3DSystem):
             points = self.cond_pc
             
         # Change it to dynamic
+        
+        # import pdb; pdb.set_trace()
                     
         # if self.threefuse:
         device = self.device
@@ -198,6 +222,8 @@ class GaussianSplatting(BaseLift3DSystem):
     
             min_disp_list = []
             max_disp_list = []
+            
+            #####
             
             for disp in disparity:
                 max = torch.max(disp)
@@ -254,6 +280,7 @@ class GaussianSplatting(BaseLift3DSystem):
         
         outputs = {
             "comp_rgb": torch.stack(renders, dim=0).permute(0, 2, 3, 1),
+            "comp_depth": F.interpolate(torch.stack(depths, dim=0), size=(64,64), mode='bilinear'),
             "viewspace_points": viewspace_points,
             "visibility_filter": visibility_filters,
             "radii": radiis,
@@ -281,6 +308,30 @@ class GaussianSplatting(BaseLift3DSystem):
         else:
             opt, net_opt = self.optimizers()
             
+        # if len(torch.unique(batch["idx_keys"][:,0])) != self.cfg.batch_size:
+            
+        #     original_batch = batch
+            
+        #     bs = batch["c2w"].shape[0]
+        #     vis_idx = torch.randperm(batch["idx_keys"][-1,0])[:self.cfg.batch_size]
+        #     num_multiview = batch["idx_keys"][-1,1] + 1
+        #     view_list = [*range(bs)]
+            
+        #     batch_ranges = []
+            
+        #     for i in vis_idx:
+        #         batch_ranges += view_list[i*num_multiview: (i+1)*num_multiview]
+                
+        #     import pdb; pdb.set_trace()
+                
+        #     for key in batch.keys():
+        #         try:
+        #             batch[key] = original_batch[key][batch_ranges]
+        #         except:
+        #             pass
+            
+        # import pdb; pdb.set_trace()
+                        
         out = self(batch)
         
         iteration = self.global_step
@@ -326,7 +377,6 @@ class GaussianSplatting(BaseLift3DSystem):
                 )
             
                 cam_radius = batch["camera_distances"]
-                depth_maps = out["pts_depth"].permute(0,3,1,2)
             
                 if self.cfg.pytorch_three:
                     
@@ -396,10 +446,11 @@ class GaussianSplatting(BaseLift3DSystem):
                     loc_tensor = None
                     inter_dict = None
                              
-            guidance_inp = out["comp_rgb"]     
-                           
+            guidance_inp = out["comp_rgb"]    
+            
+                 
             guidance_out = self.guidance(
-                guidance_inp, self.prompt_utils, **batch, depth_map=depth_maps,  noise_map=noise_map, rgb_as_latents=False, 
+                guidance_inp, self.prompt_utils, **batch, noise_map=noise_map, rgb_as_latents=False, 
                 idx_map=loc_tensor, inter_dict=inter_dict
             )
                     
@@ -432,7 +483,7 @@ class GaussianSplatting(BaseLift3DSystem):
                 surface_raster_settings = PointsRasterizationSettings(
                     image_size= 64,
                     radius = surf_radius,
-                    points_per_pixel = 2
+                    points_per_pixel = 10
                 )
                 
                 cam_radius = batch["camera_distances"]
@@ -491,24 +542,69 @@ class GaussianSplatting(BaseLift3DSystem):
                             
                             if self.cfg.background_rand == "ball":
                                 self.background_noise_pts, self.background_noise_vals = sphere_pts_generator(self.device)
-        
+
+                            self.noise_map_dict = {"fore": {}, "back": {}}
+            
                         surf_map = render_depth_from_cloud(points, batch, surface_raster_settings, cam_radius, device, dynamic_points=self.gaussian_dynamic, cali=90, raw=True)           
-                        
-                        if self.cfg.reprojection_info is False:
-                            fore_noise_maps = reprojector(self.noise_pts, self.noise_vals, batch['c2w'], torch.linalg.inv(batch['c2w']), batch["fovy"], self.device, ref_depth=surf_map).nan_to_num()
-                            proj_loc, idx_maps = None, None
+
+                        if self.cfg.constant_viewpoints:
+                            key_list = [f"{k[0]}_{k[1]}" for k in batch['idx_keys']]
+                            fore_noise_list = [None for i in range(len(key_list))]
+                            back_noise_list = [None for i in range(len(key_list))]
+                            new_rend = []
+                            new_keys = []
+                            
+                            for i, key in enumerate(key_list):
+                                if key in self.noise_map_dict["fore"].keys():
+                                    fore_noise_list[i] = self.noise_map_dict["fore"][key]
+                                    back_noise_list[i] = self.noise_map_dict["back"][key]
+                                else:
+                                    new_rend.append(i)
+                                    new_keys.append(key)
+                                                        
+                            if len(new_rend) != 0:
+                                new_fore_noise_maps = reprojector(self.noise_pts, self.noise_vals, batch['c2w'][new_rend], torch.linalg.inv(batch['c2w'][new_rend]), batch["fovy"][new_rend], self.device, ref_depth=surf_map[new_rend]).nan_to_num()
+                                
+                                if self.cfg.background_rand == "ball":
+                                    new_back_noise_maps = reprojector(self.background_noise_pts, self.background_noise_vals, batch['c2w'][new_rend], torch.linalg.inv(batch['c2w'][new_rend]), batch["fovy"][new_rend], self.device, img_size=64, background=True).nan_to_num()    
+                                
+                                # import pdb; pdb.set_trace()
+                                
+                                for k, idx in enumerate(new_rend):
+                                    self.noise_map_dict["fore"][new_keys[k]] = new_fore_noise_maps[k]
+                                    fore_noise_list[idx] = new_fore_noise_maps[k]
+                                    
+                                    if self.cfg.background_rand == "ball":
+                                        self.noise_map_dict["back"][new_keys[k]] = new_back_noise_maps[k]
+                                        back_noise_list[idx] = new_back_noise_maps[k]
+
+                            fore_noise_maps = torch.stack(fore_noise_list)
+                            
+                            if self.cfg.background_rand == "ball":
+                                back_noise_maps = torch.stack(back_noise_list)
+                                
                         else:
-                            fore_noise_maps, proj_loc, idx_maps = reprojector(self.noise_pts, self.noise_vals, batch['c2w'], torch.linalg.inv(batch['c2w']), 
-                                                                              batch["fovy"], self.device, ref_depth=surf_map, reprojection_info=self.cfg.reprojection_info)
-                            fore_noise_maps = fore_noise_maps.nan_to_num()
-                            # import pdb; pdb.set_trace()
+                            fore_noise_maps = reprojector(self.noise_pts, self.noise_vals, batch['c2w'], torch.linalg.inv(batch['c2w']), batch["fovy"], self.device, ref_depth=surf_map).nan_to_num()
+                        
+                        proj_loc, idx_maps = None, None
+                        # import pdb; pdb.set_trace()
+                        
+                        # if self.cfg.reprojection_info is False:
+
+                        # else:
+                        #     fore_noise_maps, proj_loc, idx_maps = reprojector(self.noise_pts, self.noise_vals, batch['c2w'], torch.linalg.inv(batch['c2w']), 
+                        #                                                       batch["fovy"], self.device, ref_depth=surf_map, reprojection_info=self.cfg.reprojection_info)
+                        #     fore_noise_maps = fore_noise_maps.nan_to_num()
+                        
+                        # import pdb; pdb.set_trace()
                             
                         if self.cfg.background_rand == "random":
                             back_mask = (fore_noise_maps == 0.).float()
                             noise_map = back_mask * torch.randn_like(fore_noise_maps) + fore_noise_maps
                             
-                        elif self.cfg.background_rand == "ball":                        
-                            back_noise_maps = reprojector(self.background_noise_pts, self.background_noise_vals, batch['c2w'], torch.linalg.inv(batch['c2w']), batch["fovy"], self.device, img_size=64, background=True).nan_to_num()                        
+                        elif self.cfg.background_rand == "ball":
+                            if back_noise_maps is None:               
+                                back_noise_maps = reprojector(self.background_noise_pts, self.background_noise_vals, batch['c2w'], torch.linalg.inv(batch['c2w']), batch["fovy"], self.device, img_size=64, background=True).nan_to_num()                        
                             back_mask = (fore_noise_maps == 0.).float()
                             noise_map = back_mask * back_noise_maps + fore_noise_maps
                         
@@ -529,20 +625,25 @@ class GaussianSplatting(BaseLift3DSystem):
                     loc_tensor = None
                     inter_dict = None
                     depth_masks = None  
-            
-            # import pdb; pdb.set_trace()
                                     
             guidance_inp = out["comp_rgb"]  
-                        
-            if self.cfg.nearby_fusing:
-                grad_setting = "penta"
             
+            depth_warp = True
+            
+            if depth_warp:                
+                dn_rays_d = F.interpolate(batch["rays_d"].permute(0,3,1,2), size=(64,64), mode='bilinear')
+                dn_rays_o = batch["rays_o"][:,0,0][...,None,None].repeat(1,1,64,64)
+                
+                re_dict = ray_reprojector(self.cfg.batch_size, dn_rays_d, dn_rays_o, out["comp_depth"], batch['c2w'], torch.linalg.inv(batch['c2w']), batch["fovy"], self.device, img_size=64)
+
             else:
-                grad_setting = "after"
-                                               
+                re_dict = None
+                
+                                                           
             guidance_out = self.guidance(
                 guidance_inp, self.prompt_utils, **batch, noise_map=noise_map, rgb_as_latents=False, 
-                idx_map=loc_tensor, inter_dict=inter_dict, depth_masks=depth_masks,  consistency_mask=self.cfg.consistency_mask, grad_setting=grad_setting,
+                idx_map=loc_tensor, inter_dict=inter_dict, depth_masks=depth_masks,  consistency_mask=self.cfg.consistency_mask,
+                re_dict=re_dict
             )        
 
 

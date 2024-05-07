@@ -78,8 +78,101 @@ def reprojector(pts_locations, pts_feats, target_pose, target_pose_inv, fovy, de
         reprojection_results = (feature_maps, proj_pix.int(), idx_maps)
     
     return reprojection_results
-    
 
+
+def ray_reprojector(batch_size, src_d, src_o, src_depth, target_pose, target_pose_inv, fovy, device, img_size=64, **kwargs):
+    """
+    Inverse
+    Source: Unseen view
+    Target: GT view
+    
+    """ 
+    
+    # height, width, _ = source_rays.origins.shape
+    
+    num_multiview = src_d.shape[0] // batch_size
+    
+    batch_idxs = [*range(len(src_d))]
+    
+    # source_viewdirs = source_rays.viewdirs.reshape(-1,3)
+    # source_distance_flat = source_distance.reshape(-1,1)
+    # source_origins = source_rays.origins.reshape(-1,3)
+    
+    re_dict = {"proj_maps": {}, "depth_masks": {}, "src_ind": None, "tgt_ind": None}
+    
+    tgt_ind_list = []
+    src_ind_list = []
+    
+    for k in range(batch_size):
+        
+        src_idx = k * num_multiview
+        tgt_idx = batch_idxs[src_idx+1 : (k+1)*num_multiview]
+        
+        tgt_ind_list += tgt_idx
+        src_list = [src_idx for i in range(len(tgt_idx))]
+        src_ind_list += src_list
+        
+        pts_sampled = (src_d[src_idx].reshape(3,-1) * src_depth[src_idx].reshape(1,-1) + src_o[src_idx].reshape(3,-1)).permute(1,0)
+        target_origin = target_pose[tgt_idx,:3,-1]        
+        target_center_viewdir = (target_pose[tgt_idx,:3,2])
+        pts_to_tgt_origin = pts_sampled[None,...] - target_origin[:,None,...]
+        
+        dist_to_tgt_origin = torch.linalg.norm(pts_to_tgt_origin, axis=-1, keepdims=True)
+        target_viewdirs = pts_to_tgt_origin / dist_to_tgt_origin
+
+        new_per_view_lengths = (target_viewdirs * target_center_viewdir[:, None, :]).sum(axis = -1)
+        target_directions = target_viewdirs / new_per_view_lengths[..., None]
+        
+        # Reprojector: Given target view, where do the points fall? ###############
+
+        worldtocamera = target_pose_inv[tgt_idx]
+        
+        target_cameradir = (target_directions[...,None,:] * worldtocamera[..., None, :3, :3]).sum(-1)
+
+        target_projection = target_cameradir[...,:2]
+        
+        # Flip the coordinates so that order is [y_coordinate, x_coordinate]
+        
+        unflip_proj = target_projection / torch.tan(0.5 * fovy[tgt_idx,None,None]) # Consider focal length / FoV
+        
+        # import pdb; pdb.set_trace()
+        # projected_loc_norm = unflip_proj.reshape(-1,2).fliplr().reshape(num_multiview-1,-1,2) * torch.tensor([1,-1]).to(device)[None,None,...]
+        
+        projected_loc = unflip_proj * torch.tensor([-1,1]).to(device)[None,None,...]
+        
+        for i, proj in enumerate(projected_loc):
+            re_dict["proj_maps"][f"{k}_{i}"] = proj.reshape(img_size, img_size, 2)
+        
+        # Generate depth mask
+        
+        with torch.no_grad():
+            coord_loc = projected_loc.reshape(-1,2).fliplr().reshape(num_multiview-1,-1,2)
+            proj_loc = (coord_loc * (img_size / 2) + (img_size / 2)).clamp(0,img_size-0.0001)
+            proj_pix = proj_loc.int()
+                        
+            for i, tgt in enumerate(tgt_idx):
+                tgt_depth = src_depth[tgt, 0]
+                corres_depth = tgt_depth[proj_pix[i,:,0],proj_pix[i,:,1]]
+                depth_mask = ((dist_to_tgt_origin[i].squeeze().detach() - corres_depth) < 0.07).float()
+                
+                re_dict["depth_masks"][f"{k}_{i}"] = depth_mask.reshape(1,img_size, img_size)
+                            
+                # hello = (depth_mask[None,...,None] * proj_pix).int()
+                # canvas = torch.zeros(64,64).to(device)
+                # img = canvas[hello[i,:,0], hello[i,:,1]]
+
+    re_dict["tgt_ind"] = tgt_ind_list
+    re_dict["src_ind"] = src_ind_list
+    # import pdb; pdb.set_trace()    
+    
+    ## test code ###
+    # new = (re_dict['depth_masks']['0_0'].reshape(4096,1) * (((re_dict['proj_maps']['0_0'] * torch.tensor([-1,1]).to(device)[None,...]).reshape(-1,2).fliplr()) * 32 + 32).clamp(0,img_size-0.0001)
+    # canvas = torch.zeros(64,64)
+    # canvas[new[:,0].int(),new[:,1].int()] = 1    
+    # save_image(canvas,"canv.png")          
+
+        
+    return re_dict
 
 def one_to_one_rasterizer(pts_proj_pix, pts_feats, pts_depth, device, ref_depth=None, img_size=64, pts_per_pix=5000, pts_thresh=0.3, background=True, **kwargs):
         
@@ -137,7 +230,7 @@ def one_to_one_rasterizer(pts_proj_pix, pts_feats, pts_depth, device, ref_depth=
         if return_reproj_info:
             res_canv = canv.reshape(-1, pts_per_pix, 6)
             depth_key = torch.min(res_canv[...,0], dim=-1)[1].flatten()
-            idx_map = res_canv[pix_key, depth_key][:,1].reshape(img_size, img_size).int()
+            idx_map = res_canv[pix_key, depth_key][:,:2].reshape(img_size, img_size, 2)
             idx_map_stack.append(idx_map)
         
         # import pdb; pdb.set_trace()
@@ -162,9 +255,29 @@ def one_to_one_rasterizer(pts_proj_pix, pts_feats, pts_depth, device, ref_depth=
     
     if return_reproj_info:
         idx_maps = torch.stack(idx_map_stack)
+        
+        src_view = 2
+        tgt_view= 3
+
+        
+        visible_pts_idx = torch.unique(idx_maps[src_view,:,:,1].flatten())[1:].int()
+        
+        depth_canvas = torch.zeros((64,64,2)).to(device)
+        src_canvas = torch.zeros((64,64,2)).int().to(device)
+        
+        depth_canvas[y_coords[tgt_view, visible_pts_idx], x_coords[tgt_view, visible_pts_idx]] = rasterizer_info[tgt_view, visible_pts_idx,:2].squeeze()
+        depth_cons_mask = (torch.abs((depth_canvas[:,:,0] - idx_maps[tgt_view,:,:,0])) < 0.05).float()
+        
+        valid_idx = torch.unique(depth_cons_mask * depth_canvas[:,:,1])[1:].int()
+        
+        src_canvas[y_coords[src_view, valid_idx], x_coords[src_view, valid_idx]] = torch.stack((y_coords[tgt_view, valid_idx], x_coords[tgt_view, valid_idx]), dim=-1)
+        
     else:
         idx_maps = None
-        
+    
+    # import pdb; pdb.set_trace()
+    
+
     return feat_maps, idx_maps
 
 

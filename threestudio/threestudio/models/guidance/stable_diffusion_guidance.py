@@ -137,6 +137,7 @@ class StableDiffusionGuidance(BaseObject):
             self.us: Float[Tensor, "..."] = torch.sqrt((1 - self.alphas) / self.alphas)
 
         self.grad_clip_val: Optional[float] = None
+        self.cos_similarity = nn.CosineSimilarity(dim=0, eps=1e-6)
 
         threestudio.info(f"Loaded Stable Diffusion!")
 
@@ -382,6 +383,52 @@ class StableDiffusionGuidance(BaseObject):
 
         return grad, guidance_eval_utils
 
+    
+    def grad_warp(self, re_dict, grad, name = "test"):
+    
+        # re_dict = kwargs["re_dict"]
+        keylist = [key for key in re_dict["proj_maps"].keys()]
+        
+        projections = []
+        depth_masks = []
+                    
+        for key in keylist:
+            projections.append(re_dict["proj_maps"][key])
+            depth_masks.append(re_dict["depth_masks"][key])
+                    
+        projections = torch.stack(projections)
+        depth_masks = torch.stack(depth_masks)
+        tgt_grads = grad[re_dict["tgt_ind"]]
+        
+        warped_gradients = depth_masks * F.grid_sample(tgt_grads, projections, mode='nearest')
+        
+        similiarty_maps = []
+                
+        for i, src in enumerate(re_dict["src_ind"]):
+            sim = self.cos_similarity(grad[src], warped_gradients[i])[None,...]
+            similiarty_maps.append(sim)
+            
+        # Visualizer ##########
+        sims = torch.stack(similiarty_maps)
+        valid_sim = (1 - depth_masks) * -1 + sims
+                
+        # fig = plt.figure(figsize=(len(re_dict["tgt_ind"]) * 2 + 2, 2))
+        
+        map = valid_sim.cpu().detach().numpy()
+
+        fig, axes = plt.subplots(nrows=1, ncols=4)
+        
+        for i, ax in enumerate(axes.flat):
+            im = ax.imshow(map[i,0], cmap='hot')
+        
+        fig.colorbar(im, ax=axes.ravel().tolist())
+        plt.show()
+
+        plt.savefig(str(name) + '.png')
+        
+        return warped_gradients, sims
+    
+
     def __call__(
         self,
         rgb: Float[Tensor, "B H W C"],
@@ -437,7 +484,7 @@ class StableDiffusionGuidance(BaseObject):
         
         ###########
         
-        # t = torch.ones_like(t) * 430
+        t = torch.ones_like(t) * 430
         
         ###########
 
@@ -461,7 +508,7 @@ class StableDiffusionGuidance(BaseObject):
         
         # save_image 
         
-        # map = output.cpu().detach().numpy()
+        # map = sims.cpu().detach().numpy()
         # plt.imshow(map, cmap='hot')
         # plt.colorbar()
         # plt.savefig('new.png')
@@ -470,17 +517,27 @@ class StableDiffusionGuidance(BaseObject):
         # loss = SpecifyGradient.apply(latents, grad)
         # SpecifyGradient is not straghtforward, use a reparameterization trick instead
         target = (latents - grad).detach()
-                
-        if consistency_mask:
-            cos = nn.CosineSimilarity(dim=0, eps=1e-6)
+        
+        import pdb; pdb.set_trace()
+        
+        warped_gradients, sims = self.grad_warp(kwargs["re_dict"], grad, name="consistent")
+        
+        import pdb; pdb.set_trace()      
+        
+       
+        # if consistency_mask:
             
-            mask1 = (cos(grad[0], grad[1]) > 0.6).float()
-            mask2 = (cos(grad[2], grad[3]) > 0.6).float()
+        #     import pdb; pdb.set_trace()
             
-            masks = torch.stack((mask1, mask1, mask2, mask2))
+        #     cos = nn.CosineSimilarity(dim=0, eps=1e-6)
             
-            latents = masks * latents
-            target = masks * target
+        #     mask1 = (cos(grad[0], grad[1]) > 0.6).float()
+        #     mask2 = (cos(grad[2], grad[3]) > 0.6).float()
+            
+        #     masks = torch.stack((mask1, mask1, mask2, mask2))
+            
+        #     latents = masks * latents
+        #     target = masks * target
         
         if depth_masks is not None:
             # import pdb; pdb.set_trace()

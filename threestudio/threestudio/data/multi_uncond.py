@@ -65,6 +65,7 @@ class RandomCameraDataModuleConfig:
     rays_d_normalize: bool = True
     constant_viewpoints: bool = False
     num_const_views: int = 10
+    noise_alter_interval: int = 10
 
 
 class RandomCameraIterableDataset(IterableDataset, Updateable):
@@ -113,9 +114,22 @@ class RandomCameraIterableDataset(IterableDataset, Updateable):
         
         self.num_multiview = self.cfg.num_multiview
         self.multiview_deg = self.cfg.multiview_deg
+        # self.sample_every_view = True
+        # self.original_batch_size = self.batch_size
+
 
     def update_step(self, epoch: int, global_step: int, on_load_weights: bool = False):
         size_ind = bisect.bisect_right(self.resolution_milestones, global_step) - 1
+        
+        # import pdb; pdb.set_trace()
+        
+        # if self.cfg.constant_viewpoints and global_step % self.cfg.noise_alter_interval == self.cfg.noise_alter_interval - 1 :
+        #     self.sample_every_view = True
+        # else:
+        #     self.sample_every_view = False
+        
+        # import pdb; pdb.set_trace()
+        
         self.height = self.heights[size_ind]
         self.width = self.widths[size_ind]
         self.batch_size = self.batch_sizes[size_ind]
@@ -158,10 +172,17 @@ class RandomCameraIterableDataset(IterableDataset, Updateable):
         
         # 기준이 되는 viewpoint sample
         
+        self.batch_size = self.batch_sizes[0]
+        
         background_var = None
+        idx_keys = torch.linspace(0, self.batch_size-1, self.batch_size).int()[...,None]
         
         if self.cfg.constant_viewpoints:
-            elevation_deg = torch.ones(self.batch_size) * self.cfg.eval_elevation_deg
+                        
+            # if self.sample_every_view: 
+            #     self.batch_size = self.cfg.num_const_views
+       
+            elevation_deg = torch.ones(self.batch_size) * self.cfg.eval_elevation_deg    
             elevation = elevation_deg * math.pi / 180
             
         else:
@@ -194,7 +215,7 @@ class RandomCameraIterableDataset(IterableDataset, Updateable):
 
         # sample azimuth angles from a uniform distribution bounded by azimuth_range
         azimuth_deg: Float[Tensor, "B"]
-        
+            
         if self.cfg.only_front:
             azimuth_deg = (
                 torch.rand(self.batch_size)
@@ -203,9 +224,20 @@ class RandomCameraIterableDataset(IterableDataset, Updateable):
             )
         
         elif self.cfg.constant_viewpoints:            
-            azimuth_cadidates = torch.linspace(start= 0, end=350, steps = self.cfg.num_const_views)            
-            cand_idx = torch.randint(self.cfg.num_const_views, (self.batch_size,))
+            azimuth_cadidates = torch.linspace(start= 0, end=350, steps = self.cfg.num_const_views)   
+                        
+            # if not self.sample_every_view:  
+            cand_idx = torch.randperm(self.cfg.num_const_views)[:self.batch_size]
+            # else:
+            #     cand_idx = torch.linspace(start=0, end=self.cfg.num_const_views-1, steps=self.cfg.num_const_views).int()
+            
             azimuth_deg = azimuth_cadidates[cand_idx]
+            
+            # import pdb; pdb.set_trace()
+            
+            # if self.sample_every_view:
+            idx_keys = torch.stack((cand_idx.repeat_interleave(self.cfg.num_multiview + 1), torch.linspace(start=0, end=self.cfg.num_multiview, steps=self.cfg.num_multiview+1).int().repeat(self.batch_size)),dim=-1)
+            # idx_keys = torch.stack((cand_idx.repeat_interleave(num_multiview + 1), torch.linspace(start=0, end=num_multiview, steps=num_multiview+1).int().repeat(batch_size)),dim=0)
             
         elif self.cfg.batch_uniform_azimuth:
             # ensures sampled azimuth angles in a batch cover the whole range
@@ -278,7 +310,7 @@ class RandomCameraIterableDataset(IterableDataset, Updateable):
         
             background_var = torch.randint(2, size=(self.batch_size,)).repeat_interleave(self.num_multiview + 1)[...,None]
             fovy_deg = fovy_deg.repeat_interleave(self.num_multiview + 1)
-
+            
             new_batch_size = self.batch_size * (1 + self.num_multiview)
             self.batch_size = new_batch_size
             
@@ -420,6 +452,8 @@ class RandomCameraIterableDataset(IterableDataset, Updateable):
         )  # FIXME: hard-coded near and far
         mvp_mtx: Float[Tensor, "B 4 4"] = get_mvp_matrix(c2w, self.proj_mtx)
         self.fovy = fovy
+        
+        # import pdb; pdb.set_trace()
                 
         return {
             "rays_o": rays_o,
@@ -436,7 +470,8 @@ class RandomCameraIterableDataset(IterableDataset, Updateable):
             "fovy": self.fovy,
             "fov": self.fovy,
             "proj_mtx": self.proj_mtx,
-            "background_var" : background_var
+            "background_var" : background_var,
+            "idx_keys": idx_keys
         }
 
 

@@ -2,25 +2,25 @@
 # python launch.py --config custom/threestudio-3dgs/configs/gs_sds_pc_init_noising_full.yaml  --train --gpu 1 system.prompt_processor.prompt="a DSLR photo of an owl"  system.image_dir="/home/cvlab15/project/woojeong/naver/images/owl.jpeg" data.batch_size=1 data.num_multiview=2 data.multiview_deg=20.0 system.calibration_value=45 data.front_optimize=true
 
 prompts=(
-    # "a zoomed out DSLR photo of a ceramic lion, white background"
+    "a zoomed out DSLR photo of a ceramic lion, white background"
     "a peacock with a crown"
-    # "a mysterious LEGO wizard"
+    "a mysterious LEGO wizard"
     "a product photo of cat-shaped toy"
     # "a DSLR photo of an ironman figure"
 )
 
 img_dirs=(
-    # "/home/cvlab15/project/woojeong/wj_threestudio/images/a_ceramic_lion.png"
+    "/home/cvlab15/project/woojeong/wj_threestudio/images/a_ceramic_lion.png"
     "/home/cvlab15/project/woojeong/naver/images/peacock.png"
-    # "/home/cvlab15/project/woojeong/naver/images/lego-wizard2.png"
+    "/home/cvlab15/project/woojeong/naver/images/lego-wizard2.png"
     "/home/cvlab15/project/woojeong/naver/images/cat-toy.png"
     # "/home/cvlab15/project/naver_diffusion/matthew/matt_threestudio/threestudio/threestudio/images/ironman.png"
 )
 
 cal_vals=(
-    # 90
     90
-    # 90
+    90
+    90
     75
     # 90   
 )
@@ -31,7 +31,7 @@ python launch.py \
     --config custom/threestudio-3dgs/configs/gau_stable_diffusion.yaml \
     --train \
     --gpu 6 \
-    system.tag="Fixed_viewpoints_20_const_10" \
+    system.tag="cfg_7_5_view_20_const" \
     system.three_noise=true \
     system.pytorch_three=false \
     data.num_multiview=2 \
@@ -49,7 +49,9 @@ python launch.py \
     system.consistency_mask=false \
     data.multiview_deg=20 \
     data.constant_viewpoints=true \
-    data.num_const_views=10 \
+    data.num_const_views=20 \
+    system.reprojection_info=false \
+    system.guidance.guidance_scale=7.5 \
 
 done
 
