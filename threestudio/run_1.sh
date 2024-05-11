@@ -30,9 +30,9 @@ do
 python launch.py \
     --config custom/threestudio-3dgs/configs/gau_stable_diffusion.yaml \
     --train \
-    --gpu 2 \
-    system.tag="tester_debug" \
-    system.three_noise=true \
+    --gpu 0 \
+    system.tag="similarity_tester_naive" \
+    system.three_noise=false \
     system.pytorch_three=false \
     data.num_multiview=2 \
     system.prompt_processor.prompt="${prompts[i]}" \
@@ -45,13 +45,14 @@ python launch.py \
     system.gau_d_cond=false \
     system.n_pts_upscaling=9 \
     system.background_rand="ball" \
-    system.noise_alter_interval=10 \
+    system.noise_alter_interval=30 \
     system.consistency_mask=false \
     data.multiview_deg=15 \
     data.constant_viewpoints=true \
-    data.num_const_views=5 \
+    data.num_const_views=6 \
     system.reprojection_info=false \
-    system.guidance.guidance_scale=20 \
+    system.guidance.guidance_scale=7.5 \
+    system.guidance.add_loss="cosine_sim" \
     # trainer.max_steps=50 \
 
 done

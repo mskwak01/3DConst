@@ -54,6 +54,7 @@ class GaussianSplatting(BaseLift3DSystem):
         reprojection_info: bool = False
         batch_size: int = 1
         constant_viewpoints: bool = False
+        filename: str = "name"
 
     cfg: Config
 
@@ -587,6 +588,7 @@ class GaussianSplatting(BaseLift3DSystem):
                             fore_noise_maps = reprojector(self.noise_pts, self.noise_vals, batch['c2w'], torch.linalg.inv(batch['c2w']), batch["fovy"], self.device, ref_depth=surf_map).nan_to_num()
                         
                         proj_loc, idx_maps = None, None
+                        
                         # import pdb; pdb.set_trace()
                         
                         # if self.cfg.reprojection_info is False:
@@ -639,12 +641,11 @@ class GaussianSplatting(BaseLift3DSystem):
             else:
                 re_dict = None
                 
-                                                           
             guidance_out = self.guidance(
                 guidance_inp, self.prompt_utils, **batch, noise_map=noise_map, rgb_as_latents=False, 
                 idx_map=loc_tensor, inter_dict=inter_dict, depth_masks=depth_masks,  consistency_mask=self.cfg.consistency_mask,
-                re_dict=re_dict
-            )        
+                re_dict=re_dict, iter = iteration, filename = self.cfg.filename
+            )     
 
 
         visibility_filter = out["visibility_filter"]
@@ -699,16 +700,16 @@ class GaussianSplatting(BaseLift3DSystem):
             self.log(f"train/loss_tv", loss_tv)
             loss += loss_tv
 
-        if (
-            out.__contains__("comp_depth")
-            and self.cfg.loss["lambda_depth_tv_loss"] > 0.0
-        ):
-            loss_depth_tv = self.C(self.cfg.loss["lambda_depth_tv_loss"]) * (
-                tv_loss(out["comp_normal"].permute(0, 3, 1, 2))
-                + tv_loss(out["comp_depth"].permute(0, 3, 1, 2))
-            )
-            self.log(f"train/loss_depth_tv", loss_depth_tv)
-            loss += loss_depth_tv
+        # if (
+        #     out.__contains__("comp_depth")
+        #     and self.cfg.loss["lambda_depth_tv_loss"] > 0.0
+        # ):
+        #     loss_depth_tv = self.C(self.cfg.loss["lambda_depth_tv_loss"]) * (
+        #         tv_loss(out["comp_normal"].permute(0, 3, 1, 2))
+        #         + tv_loss(out["comp_depth"].permute(0, 3, 1, 2))
+        #     )
+        #     self.log(f"train/loss_depth_tv", loss_depth_tv)
+        #     loss += loss_depth_tv
 
         for name, value in self.cfg.loss.items():
             self.log(f"train_params/{name}", self.C(value))

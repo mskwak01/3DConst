@@ -142,7 +142,7 @@ class DeepFloydGuidance(BaseObject):
         rgb_BCHW = rgb_BCHW * 2.0 - 1.0  # scale to [-1, 1] to match the diffusion range
         latents = F.interpolate(
             rgb_BCHW, (64, 64), mode="bilinear", align_corners=False
-        )
+        )  
 
         # timestep ~ U(0.02, 0.98) to avoid very high/low noise level
         t = torch.randint(
@@ -189,6 +189,7 @@ class DeepFloydGuidance(BaseObject):
                 e_pos + accum_grad
             )
         else:
+            
             neg_guidance_weights = None
             text_embeddings = prompt_utils.get_text_embeddings(
                 elevation, azimuth, camera_distances, self.cfg.view_dependent_prompting

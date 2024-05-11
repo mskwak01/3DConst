@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 
+import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -46,6 +47,7 @@ class StableDiffusionGuidance(BaseObject):
         token_merging_params: Optional[dict] = field(default_factory=dict)
 
         view_dependent_prompting: bool = True
+        add_loss: str = "None"
 
         """Maximum number of batch items to evaluate guidance for (for debugging) and to save on disk. -1 means save all items."""
         max_items_eval: int = 4
@@ -138,6 +140,8 @@ class StableDiffusionGuidance(BaseObject):
 
         self.grad_clip_val: Optional[float] = None
         self.cos_similarity = nn.CosineSimilarity(dim=0, eps=1e-6)
+        
+        self.cos_loss = nn.CosineEmbeddingLoss()
 
         threestudio.info(f"Loaded Stable Diffusion!")
 
@@ -203,7 +207,7 @@ class StableDiffusionGuidance(BaseObject):
                 text_embeddings,
                 neg_guidance_weights,
             ) = prompt_utils.get_text_embeddings_perp_neg(
-                elevation, azimuth, camera_distances, self.cfg.view_dependent_prompting
+                elevation, azimuth, camera_distances, self.cfg.view_dependent_prompting         
             )
             with torch.no_grad():
                 if noise_map is not None:
@@ -384,7 +388,7 @@ class StableDiffusionGuidance(BaseObject):
         return grad, guidance_eval_utils
 
     
-    def grad_warp(self, re_dict, grad, name = "test"):
+    def grad_warp(self, re_dict, grad, timestep = [0], name = "test", iter=0):
     
         # re_dict = kwargs["re_dict"]
         keylist = [key for key in re_dict["proj_maps"].keys()]
@@ -403,30 +407,104 @@ class StableDiffusionGuidance(BaseObject):
         warped_gradients = depth_masks * F.grid_sample(tgt_grads, projections, mode='nearest')
         
         similiarty_maps = []
+        mse_maps = []
+        
+        tg = torch.ones_like(grad[0].reshape(4,-1)[0])
+        
+        add_loss = 0.
                 
         for i, src in enumerate(re_dict["src_ind"]):
             sim = self.cos_similarity(grad[src], warped_gradients[i])[None,...]
             similiarty_maps.append(sim)
             
+            if self.cfg.add_loss == "cosine_sim":
+                add_loss += self.cos_loss(grad[src].reshape(4,-1).permute(1,0), warped_gradients[i].reshape(4,-1).permute(1,0), target=tg)
+            
+            mse = ((grad[src] - warped_gradients[i]) ** 2).mean(dim=0)
+            mse_maps.append(mse)
+            
+        # import pdb; pdb.set_trace()
+            
+        # re_dict["src_ind"].shape / torch.unique(re_dict["src_ind"]).shape
+        
+        ##############
+
+        # src_inds = torch.tensor(re_dict["src_ind"])
+        # num_multiview = src_inds.shape[0] // torch.unique(src_inds).shape[0]
+        # center_idx = torch.unique(src_inds)
+        # num_sets = center_idx.shape[0]
+        
+        visualize_grad_var = None
+        
+        # import pdb; pdb.set_trace()
+        
+        ###############        
+        
+        # var_canvas = torch.zeros(num_sets, 1+num_multiview, grad.shape[1], grad.shape[2], grad.shape[3]).to(self.device)        
+        # c = 0  
+        
+        # for i, ct in enumerate(center_idx):
+        #     var_canvas[i,0] = grad[ct]
+        #     w_mask = torch.ones_like(depth_masks[0])
+            
+        #     for k in range(num_multiview):
+        #         var_canvas[i, k+1]= warped_gradients[c]
+        #         w_mask *= depth_masks[c]
+                
+        #         c += 1
+            
+        #     var_canvas[i] = var_canvas[i] * w_mask[None,...]
+
+        # visualize_grad_var = torch.var(var_canvas,dim=1).mean(1)        
+        # import pdb; pdb.set_trace()
+        
+        ###############
+                            
         # Visualizer ##########
         sims = torch.stack(similiarty_maps)
         valid_sim = (1 - depth_masks) * -1 + sims
-                
-        # fig = plt.figure(figsize=(len(re_dict["tgt_ind"]) * 2 + 2, 2))
+        mses = torch.stack(mse_maps)
         
-        map = valid_sim.cpu().detach().numpy()
+        # import pdb; pdb.set_trace()
+        
+        everything = torch.cat((valid_sim.squeeze(), mses), dim=0)
+        num_col = sims.shape[0]
+        
+        if iter % 50 == 0:
+            
+            map = everything.cpu().detach().numpy()
+            fig, axes = plt.subplots(2, num_col, figsize=(num_col * 3, 6))
 
-        fig, axes = plt.subplots(nrows=1, ncols=4)
-        
-        for i, ax in enumerate(axes.flat):
-            im = ax.imshow(map[i,0], cmap='hot')
-        
-        fig.colorbar(im, ax=axes.ravel().tolist())
-        plt.show()
+            # Flatten the axes array for easier iteration
+            axes = axes.flatten()
 
-        plt.savefig(str(name) + '.png')
-        
-        return warped_gradients, sims
+            # Loop over the images and display them on the subplots
+            
+            # import pdb; pdb.set_trace()
+            
+            
+            
+            for i, ax in enumerate(axes):
+                ax.imshow(map[i], cmap='hot')  # Assuming grayscale images
+                ax.axis('off')  # Turn off axis
+                ax.set_title(f'view_{str(int(re_dict["src_ind"][i % num_col]))}_step_{str(int(timestep[0]))}')  # Set title for each image`
+             
+            # fig = plt.figure(figsize=(len(re_dict["tgt_ind"]) * 2 + 2, 6))
+            # map = valid_sim.cpu().detach().numpy()
+            # mses = mses.cpu().detach().numpy()
+            
+            # for k, sim in enumerate(map):
+            #     fig.add_subplot(1,4,k+1)
+            #     plt.imshow(sim[0], cmap='hot')
+            #     fig.add_subplot(2,4,k+1)
+            #     plt.imshow(mses[k],cmap='hot')
+            
+            plt.tight_layout()
+            plt.show()
+            plt.savefig(str(name) + '.png')
+            plt.close(fig)
+            
+        return warped_gradients, sims, visualize_grad_var, add_loss
     
 
     def __call__(
@@ -484,7 +562,7 @@ class StableDiffusionGuidance(BaseObject):
         
         ###########
         
-        t = torch.ones_like(t) * 430
+        # t = torch.ones_like(t) * 430
         
         ###########
 
@@ -518,13 +596,37 @@ class StableDiffusionGuidance(BaseObject):
         # SpecifyGradient is not straghtforward, use a reparameterization trick instead
         target = (latents - grad).detach()
         
-        import pdb; pdb.set_trace()
+        add_loss = 0.
         
-        warped_gradients, sims = self.grad_warp(kwargs["re_dict"], grad, name="consistent")
+        if kwargs["re_dict"] is not None:
+            if noise_map is not None:
+                saver = "const"
+            else:
+                saver = "rand"
+            
+            foldername = "sim_out/" + saver + "/" + kwargs["filename"]
+            
+            if not os.path.exists(foldername):
+                os.makedirs(foldername)
+            
+            name = foldername + "/_iter_" + str(kwargs["iter"]) + "_timestep_" + str(str(int(t[0])))
+            warped_gradients, sims, var, add_loss = self.grad_warp(kwargs["re_dict"], grad, timestep = t, name=name, iter=kwargs["iter"])
+            
+            # if kwargs["iter"] % 50 == 0:
+                
+            #     with torch.no_grad():
+                
+            #         for p in range(1, 7):
+                        
+            #             p_num = 140 * p
+            #             test_t = p_num * torch.ones_like(t)
+            #             test_grad, _ = self.compute_grad_sds(latents, test_t, prompt_utils, elevation, azimuth, camera_distances, noise_map)
+            #             name = foldername + "/_iter_" + str(kwargs["iter"]) + "_timestep_" + str(p_num)
+            #             warped_gradients, sims, var = self.grad_warp(kwargs["re_dict"], test_grad, timestep = test_t, name=name, iter=kwargs["iter"])
+
         
-        import pdb; pdb.set_trace()      
-        
-       
+        # import pdb; pdb.set_trace()
+                
         # if consistency_mask:
             
         #     import pdb; pdb.set_trace()
@@ -543,10 +645,14 @@ class StableDiffusionGuidance(BaseObject):
             # import pdb; pdb.set_trace()
             latents = depth_masks * latents
             target = depth_masks * target
-            # import pdb; pdb.set_trace()
+        
+        # import pdb; pdb.set_trace()
             
         # d(loss)/d(latents) = latents - target = latents - (latents - grad) = grad
         loss_sds = 0.5 * F.mse_loss(latents, target, reduction="sum") / batch_size
+        
+        loss_sds += 5 * add_loss
+        
 
         guidance_out = {
             "loss_sds": loss_sds,

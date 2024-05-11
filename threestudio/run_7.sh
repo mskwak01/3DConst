@@ -28,7 +28,7 @@ cal_vals=(
 for i in "${!prompts[@]}";
 do
 python launch.py \
-    --config custom/threestudio-3dgs/configs/gau_stable_diffusion.yaml \
+    --config custom/threestudio-3dgs/configs/gau_deepfloyd_diffusion.yaml \
     --train \
     --gpu 7 \
     system.tag="tester_debug" \
