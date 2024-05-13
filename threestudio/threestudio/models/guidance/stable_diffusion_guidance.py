@@ -47,7 +47,8 @@ class StableDiffusionGuidance(BaseObject):
         token_merging_params: Optional[dict] = field(default_factory=dict)
 
         view_dependent_prompting: bool = True
-        add_loss: str = "None"
+        add_loss: str = "no_loss"
+        weight_add_loss: float = 5.0
 
         """Maximum number of batch items to evaluate guidance for (for debugging) and to save on disk. -1 means save all items."""
         max_items_eval: int = 4
@@ -139,8 +140,8 @@ class StableDiffusionGuidance(BaseObject):
             self.us: Float[Tensor, "..."] = torch.sqrt((1 - self.alphas) / self.alphas)
 
         self.grad_clip_val: Optional[float] = None
-        self.cos_similarity = nn.CosineSimilarity(dim=0, eps=1e-6)
         
+        self.cos_similarity = nn.CosineSimilarity(dim=0, eps=1e-6)
         self.cos_loss = nn.CosineEmbeddingLoss()
 
         threestudio.info(f"Loaded Stable Diffusion!")
@@ -417,7 +418,10 @@ class StableDiffusionGuidance(BaseObject):
             sim = self.cos_similarity(grad[src], warped_gradients[i])[None,...]
             similiarty_maps.append(sim)
             
-            if self.cfg.add_loss == "cosine_sim":
+            if self.cfg.add_loss == "no_loss":
+                add_loss = 0.
+            
+            elif self.cfg.add_loss == "cosine_sim":
                 add_loss += self.cos_loss(grad[src].reshape(4,-1).permute(1,0), warped_gradients[i].reshape(4,-1).permute(1,0), target=tg)
             
             mse = ((grad[src] - warped_gradients[i]) ** 2).mean(dim=0)
@@ -438,7 +442,7 @@ class StableDiffusionGuidance(BaseObject):
         
         # import pdb; pdb.set_trace()
         
-        ###############        
+        ##############        
         
         # var_canvas = torch.zeros(num_sets, 1+num_multiview, grad.shape[1], grad.shape[2], grad.shape[3]).to(self.device)        
         # c = 0  
@@ -458,7 +462,7 @@ class StableDiffusionGuidance(BaseObject):
         # visualize_grad_var = torch.var(var_canvas,dim=1).mean(1)        
         # import pdb; pdb.set_trace()
         
-        ###############
+        ##############
                             
         # Visualizer ##########
         sims = torch.stack(similiarty_maps)
@@ -470,7 +474,7 @@ class StableDiffusionGuidance(BaseObject):
         everything = torch.cat((valid_sim.squeeze(), mses), dim=0)
         num_col = sims.shape[0]
         
-        if iter % 50 == 0:
+        if iter % 250 == 0:
             
             map = everything.cpu().detach().numpy()
             fig, axes = plt.subplots(2, num_col, figsize=(num_col * 3, 6))
@@ -651,7 +655,7 @@ class StableDiffusionGuidance(BaseObject):
         # d(loss)/d(latents) = latents - target = latents - (latents - grad) = grad
         loss_sds = 0.5 * F.mse_loss(latents, target, reduction="sum") / batch_size
         
-        loss_sds += 5 * add_loss
+        loss_sds += self.cfg.weight_add_loss * add_loss
         
 
         guidance_out = {

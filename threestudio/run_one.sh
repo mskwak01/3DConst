@@ -1,0 +1,3 @@
+bash SD_c75_multideg_5_cosine_sim.sh
+bash SD_c75_multideg_10_cosine_sim.sh
+bash SD_c75_multideg_25_cosine_sim.sh

@@ -1,0 +1,4 @@
+bash SD_c75_views_10_cosine_sim.sh
+bash SD_c75_views_20_cosine_sim.sh
+bash SD_c75_views_30_cosine_sim.sh
+

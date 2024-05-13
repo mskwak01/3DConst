@@ -177,6 +177,8 @@ def ray_reprojector(batch_size, src_d, src_o, src_depth, target_pose, target_pos
 def one_to_one_rasterizer(pts_proj_pix, pts_feats, pts_depth, device, ref_depth=None, img_size=64, pts_per_pix=5000, pts_thresh=0.3, background=True, **kwargs):
         
     batch_size, num_pts = pts_depth.shape[0], pts_depth.shape[1]
+    
+    noise_channel = kwargs["noise_channel"]
         
     if "reprojection_info" in kwargs:
         return_reproj_info = kwargs["reprojection_info"]
@@ -213,10 +215,16 @@ def one_to_one_rasterizer(pts_proj_pix, pts_feats, pts_depth, device, ref_depth=
     feature_maps = []
         
     # pix_key = torch.linspace(0, img_size **2 -1, steps=img_size**2)[...,None].repeat(1, pts_per_pix).int().flatten().to(device)
+    if noise_channel == 4:
+        mult = torch.tensor([1, -1, 0, 0, 0, 0])
+    elif noise_channel == 3:
+        mult = torch.tensor([1, -1, 0, 0, 0])
         
     for i in range(batch_size):
         
-        canv = 10 * torch.ones((img_size, img_size, pts_per_pix, 6)).to(device) * torch.tensor([1,-1, 0, 0, 0, 0])[None,None,None,...].to(device)
+        
+        
+        canv = 10 * torch.ones((img_size, img_size, pts_per_pix, 2 + noise_channel)).to(device) * mult[None,None,None,...].to(device)
                 
         canv[y_coords[i], x_coords[i], rast_bin] = rasterizer_info[i]            
                 
@@ -228,7 +236,7 @@ def one_to_one_rasterizer(pts_proj_pix, pts_feats, pts_depth, device, ref_depth=
         ######################## --------------------------------------
         
         if return_reproj_info:
-            res_canv = canv.reshape(-1, pts_per_pix, 6)
+            res_canv = canv.reshape(-1, pts_per_pix, 2 + noise_channel)
             depth_key = torch.min(res_canv[...,0], dim=-1)[1].flatten()
             idx_map = res_canv[pix_key, depth_key][:,:2].reshape(img_size, img_size, 2)
             idx_map_stack.append(idx_map)
@@ -282,7 +290,7 @@ def one_to_one_rasterizer(pts_proj_pix, pts_feats, pts_depth, device, ref_depth=
 
 
 
-def pts_noise_upscaler(points, pts_noise, n_upscaling, up_loc_rand, up_feat_rand, device, pts_var=0.04):
+def pts_noise_upscaler(points, pts_noise, noise_channel, n_upscaling, up_loc_rand, up_feat_rand, device, pts_var=0.04):
     
     # Increase the number of points by N (point location)
     loc_noising = (pts_var * up_loc_rand).to(device)
@@ -295,7 +303,7 @@ def pts_noise_upscaler(points, pts_noise, n_upscaling, up_loc_rand, up_feat_rand
     upscaled_feats = raw_up_rand - noise_means
     
     up_noise = upscaled_means / torch.sqrt(torch.tensor(n_upscaling)) + upscaled_feats
-    up_noise = up_noise.permute(0,2,1).reshape(-1,4)
+    up_noise = up_noise.permute(0,2,1).reshape(-1,noise_channel)
     
     # import pdb; pdb.set_trace()    
     upscaled_feats = up_noise
@@ -303,7 +311,7 @@ def pts_noise_upscaler(points, pts_noise, n_upscaling, up_loc_rand, up_feat_rand
     return upscaled_locs, up_noise
 
 
-def sphere_pts_generator(device, radius = 1.9, orig_down_ratio=3, upscale_ratio=4):
+def sphere_pts_generator(device, noise_channel, radius = 1.9, orig_down_ratio=3, upscale_ratio=4):
     
     # num_pts = 360 * 360 * upscale_ratio ** 2
     
@@ -331,14 +339,14 @@ def sphere_pts_generator(device, radius = 1.9, orig_down_ratio=3, upscale_ratio=
     
     # Upscaled Noise
 
-    upscaled_means = torch.randn((4, num_elev_rads // orig_down_ratio, 360 // orig_down_ratio)).to(device).repeat_interleave(upscale_ratio,dim=1).repeat_interleave(upscale_ratio,dim=2)
+    upscaled_means = torch.randn((noise_channel, num_elev_rads // orig_down_ratio, 360 // orig_down_ratio)).to(device).repeat_interleave(upscale_ratio,dim=1).repeat_interleave(upscale_ratio,dim=2)
     raw_rand = torch.randn_like(upscaled_means)
     raw_rand_means = raw_rand.unfold(1, upscale_ratio, upscale_ratio).unfold(2, upscale_ratio, upscale_ratio).mean((3,4))
     raw_up_rand = raw_rand_means.repeat_interleave(upscale_ratio,dim=1).repeat_interleave(upscale_ratio,dim=2)
 
     mean_removed_rand = raw_rand - raw_up_rand
     
-    sphere_noise = (upscaled_means / upscale_ratio + mean_removed_rand).reshape(4,-1).permute(1,0)
+    sphere_noise = (upscaled_means / upscale_ratio + mean_removed_rand).reshape(noise_channel,-1).permute(1,0)
     
     return sphere_coords, sphere_noise
 

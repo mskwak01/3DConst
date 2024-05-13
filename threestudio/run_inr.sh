@@ -1,2 +1,0 @@
-python launch.py --config custom/inr_sds/configs/sds-inr.yaml --train --gpu 0 system.prompt_processor.prompt="a squirrel eating a delicious hamburger" system.consistent=1
-python launch.py --config custom/inr_sds/configs/sds-inr.yaml --train --gpu 5 system.prompt_processor.prompt="a delicious hamburger" system.consistent=1

@@ -55,6 +55,7 @@ class GaussianSplatting(BaseLift3DSystem):
         batch_size: int = 1
         constant_viewpoints: bool = False
         filename: str = "name"
+        noise_channel: int = 4
 
     cfg: Config
 
@@ -337,7 +338,7 @@ class GaussianSplatting(BaseLift3DSystem):
         
         iteration = self.global_step
         
-        noise_channel = 4
+        noise_channel = self.cfg.noise_channel
         
         if self.threefuse:
             with torch.no_grad():                
@@ -439,7 +440,7 @@ class GaussianSplatting(BaseLift3DSystem):
                         self.loc_rand = torch.randn(num_points, 3, self.cfg.n_pts_upscaling)
                         self.feat_rand = torch.randn(num_points, 4, self.cfg.n_pts_upscaling)
                         
-                        self.pts, self.noise = pts_noise_upscaler(points, self.noise_tensor, self.cfg.n_pts_upscaling, self.loc_rand, self.feat_rand, self.device)
+                        self.pts, self.noise = pts_noise_upscaler(points, self.noise_tensor, noise_channel, self.cfg.n_pts_upscaling, self.loc_rand, self.feat_rand, self.device)
                                             
                     surf_map = render_depth_from_cloud(points, batch, surface_raster_settings, cam_radius, device, dynamic_points=self.gaussian_dynamic, cali=90, raw=True)           
                     noised_maps = reprojector(self.pts, self.noise, batch['c2w'], torch.linalg.inv(batch['c2w']), batch["fovy"], self.device, ref_depth=surf_map)
@@ -535,14 +536,14 @@ class GaussianSplatting(BaseLift3DSystem):
                         if self.noise_pts is None or iteration % self.cfg.noise_alter_interval == 0:
                             num_points = points.shape[0]
                             
-                            noise_tensor = torch.randn(num_points, 4).to(self.device)
+                            noise_tensor = torch.randn(num_points, noise_channel).to(self.device)
                             loc_rand = torch.randn(num_points, 3, self.cfg.n_pts_upscaling)
-                            feat_rand = torch.randn(num_points, 4, self.cfg.n_pts_upscaling)
+                            feat_rand = torch.randn(num_points, noise_channel, self.cfg.n_pts_upscaling)
                             
-                            self.noise_pts, self.noise_vals = pts_noise_upscaler(points, noise_tensor, self.cfg.n_pts_upscaling, loc_rand, feat_rand, self.device)
+                            self.noise_pts, self.noise_vals = pts_noise_upscaler(points, noise_tensor, noise_channel, self.cfg.n_pts_upscaling, loc_rand, feat_rand, self.device)
                             
                             if self.cfg.background_rand == "ball":
-                                self.background_noise_pts, self.background_noise_vals = sphere_pts_generator(self.device)
+                                self.background_noise_pts, self.background_noise_vals = sphere_pts_generator(self.device, noise_channel)
 
                             self.noise_map_dict = {"fore": {}, "back": {}}
             
@@ -564,10 +565,10 @@ class GaussianSplatting(BaseLift3DSystem):
                                     new_keys.append(key)
                                                         
                             if len(new_rend) != 0:
-                                new_fore_noise_maps = reprojector(self.noise_pts, self.noise_vals, batch['c2w'][new_rend], torch.linalg.inv(batch['c2w'][new_rend]), batch["fovy"][new_rend], self.device, ref_depth=surf_map[new_rend]).nan_to_num()
+                                new_fore_noise_maps = reprojector(self.noise_pts, self.noise_vals, batch['c2w'][new_rend], torch.linalg.inv(batch['c2w'][new_rend]), batch["fovy"][new_rend], self.device, ref_depth=surf_map[new_rend], noise_channel=noise_channel).nan_to_num()
                                 
                                 if self.cfg.background_rand == "ball":
-                                    new_back_noise_maps = reprojector(self.background_noise_pts, self.background_noise_vals, batch['c2w'][new_rend], torch.linalg.inv(batch['c2w'][new_rend]), batch["fovy"][new_rend], self.device, img_size=64, background=True).nan_to_num()    
+                                    new_back_noise_maps = reprojector(self.background_noise_pts, self.background_noise_vals, batch['c2w'][new_rend], torch.linalg.inv(batch['c2w'][new_rend]), batch["fovy"][new_rend], self.device, img_size=64, background=True, noise_channel=noise_channel).nan_to_num()    
                                 
                                 # import pdb; pdb.set_trace()
                                 
@@ -585,7 +586,7 @@ class GaussianSplatting(BaseLift3DSystem):
                                 back_noise_maps = torch.stack(back_noise_list)
                                 
                         else:
-                            fore_noise_maps = reprojector(self.noise_pts, self.noise_vals, batch['c2w'], torch.linalg.inv(batch['c2w']), batch["fovy"], self.device, ref_depth=surf_map).nan_to_num()
+                            fore_noise_maps = reprojector(self.noise_pts, self.noise_vals, batch['c2w'], torch.linalg.inv(batch['c2w']), batch["fovy"], self.device, ref_depth=surf_map, noise_channel=noise_channel).nan_to_num()
                         
                         proj_loc, idx_maps = None, None
                         

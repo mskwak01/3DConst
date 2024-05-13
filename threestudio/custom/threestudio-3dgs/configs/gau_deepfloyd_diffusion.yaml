@@ -27,6 +27,7 @@ system:
   three_noise: true
   identical_noising: true
   gaussian_dynamic: true
+  noise_channel: 3
   geometry_type: "gaussian-splatting"
   constant_viewpoints: ${data.constant_viewpoints}
   calibration_value: 0
@@ -83,38 +84,6 @@ system:
     weighting_strategy: sds
     min_step_percent: 0.02
     max_step_percent: 0.98
-    
-  # prompt_processor_type: "stable-diffusion-prompt-processor"
-  # prompt_processor:
-  #   pretrained_model_name_or_path: "stabilityai/stable-diffusion-2-1-base"
-  #   prompt: ???
-  #   front_threshold: 30.
-  #   back_threshold: 30.
-
-  # guidance_type: "stable-diffusion-guidance"
-  # guidance:
-  #   pretrained_model_name_or_path: "stabilityai/stable-diffusion-2-1-base"
-  #   guidance_scale: 100.0
-  #   weighting_strategy: sds
-  #   min_step_percent: 0.02
-  #   max_step_percent: [1000, 0.98, 0.5, 1001]
-
-  # prompt_processor_type: "stable-diffusion-prompt-processor"
-  # prompt_processor:
-  #   pretrained_model_name_or_path: "runwayml/stable-diffusion-v1-5"
-  #   pretrained_model_name_or_path_aux: "stabilityai/stable-diffusion-2-1"
-  #   prompt: ???
-  #   front_threshold: 30.
-  #   back_threshold: 30.
-  #   multiple_encoders: true
-
-  # guidance_type: "threefuse-guidance"
-  # guidance:
-  #   pretrained_model_name_or_path: "/home/cvlab15/project/ines/threestudio/controlnet"
-  #   guidance_scale: 100.0
-  #   weighting_strategy: sds
-  #   min_step_percent: 0.02
-  #   max_step_percent: [2000, 0.98, 0.5, 2001]
 
   exporter_type: "gaussian-mesh-exporter"
 

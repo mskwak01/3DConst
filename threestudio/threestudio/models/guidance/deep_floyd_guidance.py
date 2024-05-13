@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 
+import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -14,6 +15,8 @@ from threestudio.utils.misc import C, parse_version
 from threestudio.utils.ops import perpendicular_component
 from threestudio.utils.typing import *
 
+from torchvision.utils import save_image
+import matplotlib.pyplot as plt
 
 @threestudio.register("deep-floyd-guidance")
 class DeepFloydGuidance(BaseObject):
@@ -37,6 +40,7 @@ class DeepFloydGuidance(BaseObject):
         weighting_strategy: str = "sds"
 
         view_dependent_prompting: bool = True
+        add_loss: str = "None"
 
         """Maximum number of batch items to evaluate guidance for (for debugging) and to save on disk. -1 means save all items."""
         max_items_eval: int = 4
@@ -101,7 +105,10 @@ class DeepFloydGuidance(BaseObject):
         )
 
         self.grad_clip_val: Optional[float] = None
-
+    
+        self.cos_similarity = nn.CosineSimilarity(dim=0, eps=1e-6)
+        self.cos_loss = nn.CosineEmbeddingLoss()    
+    
         threestudio.info(f"Loaded Deep Floyd!")
 
     @torch.cuda.amp.autocast(enabled=False)
@@ -122,46 +129,35 @@ class DeepFloydGuidance(BaseObject):
             t.to(self.weights_dtype),
             encoder_hidden_states=encoder_hidden_states.to(self.weights_dtype),
         ).sample.to(input_dtype)
-
-    def __call__(
+        
+        
+    def compute_grad_sds(
         self,
-        rgb: Float[Tensor, "B H W C"],
+        latents: Float[Tensor, "B 4 64 64"],
+        t: Int[Tensor, "B"],
         prompt_utils: PromptProcessorOutput,
         elevation: Float[Tensor, "B"],
         azimuth: Float[Tensor, "B"],
         camera_distances: Float[Tensor, "B"],
-        rgb_as_latents=False,
-        guidance_eval=False,
-        **kwargs,
+        noise_map 
     ):
-        batch_size = rgb.shape[0]
-
-        rgb_BCHW = rgb.permute(0, 3, 1, 2)
-
-        assert rgb_as_latents == False, f"No latent space in {self.__class__.__name__}"
-        rgb_BCHW = rgb_BCHW * 2.0 - 1.0  # scale to [-1, 1] to match the diffusion range
-        latents = F.interpolate(
-            rgb_BCHW, (64, 64), mode="bilinear", align_corners=False
-        )  
-
-        # timestep ~ U(0.02, 0.98) to avoid very high/low noise level
-        t = torch.randint(
-            self.min_step,
-            self.max_step + 1,
-            [batch_size],
-            dtype=torch.long,
-            device=self.device,
-        )
-
+        
+        batch_size = latents.shape[0]
+        
         if prompt_utils.use_perp_neg:
             (
                 text_embeddings,
                 neg_guidance_weights,
             ) = prompt_utils.get_text_embeddings_perp_neg(
-                elevation, azimuth, camera_distances, self.cfg.view_dependent_prompting
+                elevation, azimuth, camera_distances, self.cfg.view_dependent_prompting         
             )
             with torch.no_grad():
-                noise = torch.randn_like(latents)
+                
+                if noise_map is not None:
+                    noise = noise_map
+                else:
+                    noise = torch.randn_like(latents)
+                    
                 latents_noisy = self.scheduler.add_noise(latents, noise, t)
                 latent_model_input = torch.cat([latents_noisy] * 4, dim=0)
                 noise_pred = self.forward_unet(
@@ -189,15 +185,17 @@ class DeepFloydGuidance(BaseObject):
                 e_pos + accum_grad
             )
         else:
-            
             neg_guidance_weights = None
             text_embeddings = prompt_utils.get_text_embeddings(
                 elevation, azimuth, camera_distances, self.cfg.view_dependent_prompting
             )
             # predict the noise residual with unet, NO grad!
             with torch.no_grad():
-                # add noise
-                noise = torch.randn_like(latents)  # TODO: use torch generator
+                if noise_map is not None:
+                    noise = noise_map
+                else:
+                    noise = torch.randn_like(latents)
+
                 latents_noisy = self.scheduler.add_noise(latents, noise, t)
                 # pred noise
                 latent_model_input = torch.cat([latents_noisy] * 2, dim=0)
@@ -214,30 +212,153 @@ class DeepFloydGuidance(BaseObject):
             noise_pred = noise_pred_text + self.cfg.guidance_scale * (
                 noise_pred_text - noise_pred_uncond
             )
-
-        """
-        # thresholding, experimental
-        if self.cfg.thresholding:
-            assert batch_size == 1
-            noise_pred = torch.cat([noise_pred, predicted_variance], dim=1)
-            noise_pred = custom_ddpm_step(self.scheduler,
-                noise_pred, int(t.item()), latents_noisy, **self.pipe.prepare_extra_step_kwargs(None, 0.0)
-            )
-        """
-
-        if self.cfg.weighting_strategy == "sds":
-            # w(t), sigma_t^2
-            w = (1 - self.alphas[t]).view(-1, 1, 1, 1)
-        elif self.cfg.weighting_strategy == "uniform":
-            w = 1
-        elif self.cfg.weighting_strategy == "fantasia3d":
-            w = (self.alphas[t] ** 0.5 * (1 - self.alphas[t])).view(-1, 1, 1, 1)
-        else:
-            raise ValueError(
-                f"Unknown weighting strategy: {self.cfg.weighting_strategy}"
-            )
+            
+            if self.cfg.weighting_strategy == "sds":
+                # w(t), sigma_t^2
+                w = (1 - self.alphas[t]).view(-1, 1, 1, 1)
+            elif self.cfg.weighting_strategy == "uniform":
+                w = 1
+            elif self.cfg.weighting_strategy == "fantasia3d":
+                w = (self.alphas[t] ** 0.5 * (1 - self.alphas[t])).view(-1, 1, 1, 1)
+            else:
+                raise ValueError(
+                    f"Unknown weighting strategy: {self.cfg.weighting_strategy}"
+                )
 
         grad = w * (noise_pred - noise)
+    
+        guidance_eval_utils = {
+            "use_perp_neg": prompt_utils.use_perp_neg,
+            "neg_guidance_weights": neg_guidance_weights,
+            "text_embeddings": text_embeddings,
+            "t_orig": t,
+            "latents_noisy": latents_noisy,
+            "noise_pred": noise_pred,
+        }
+
+        return grad, guidance_eval_utils
+
+    def grad_warp(self, re_dict, grad, timestep = [0], name = "test", iter=0):
+    
+        # re_dict = kwargs["re_dict"]
+        keylist = [key for key in re_dict["proj_maps"].keys()]
+        
+        projections = []
+        depth_masks = []
+                    
+        for key in keylist:
+            projections.append(re_dict["proj_maps"][key])
+            depth_masks.append(re_dict["depth_masks"][key])
+                    
+        projections = torch.stack(projections)
+        depth_masks = torch.stack(depth_masks)
+        tgt_grads = grad[re_dict["tgt_ind"]]
+        
+        warped_gradients = depth_masks * F.grid_sample(tgt_grads, projections, mode='nearest')
+        
+        similiarty_maps = []
+        mse_maps = []
+        
+        tg = torch.ones_like(grad[0].reshape(4,-1)[0])
+        
+        add_loss = 0.
+                
+        for i, src in enumerate(re_dict["src_ind"]):
+            sim = self.cos_similarity(grad[src], warped_gradients[i])[None,...]
+            similiarty_maps.append(sim)
+            
+            if self.cfg.add_loss == "cosine_sim":
+                add_loss += self.cos_loss(grad[src].reshape(4,-1).permute(1,0), warped_gradients[i].reshape(4,-1).permute(1,0), target=tg)
+            
+            mse = ((grad[src] - warped_gradients[i]) ** 2).mean(dim=0)
+            mse_maps.append(mse)
+                    
+        visualize_grad_var = None
+                            
+        # Visualizer ##########
+        sims = torch.stack(similiarty_maps)
+        valid_sim = (1 - depth_masks) * -1 + sims
+        mses = torch.stack(mse_maps)
+        
+        # import pdb; pdb.set_trace()
+        
+        everything = torch.cat((valid_sim.squeeze(), mses), dim=0)
+        num_col = sims.shape[0]
+        
+        if iter % 50 == 0:
+            
+            map = everything.cpu().detach().numpy()
+            fig, axes = plt.subplots(2, num_col, figsize=(num_col * 3, 6))
+
+            # Flatten the axes array for easier iteration
+            axes = axes.flatten()
+
+            # Loop over the images and display them on the subplots
+            
+            for i, ax in enumerate(axes):
+                ax.imshow(map[i], cmap='hot')  # Assuming grayscale images
+                ax.axis('off')  # Turn off axis
+                ax.set_title(f'view_{str(int(re_dict["src_ind"][i % num_col]))}_step_{str(int(timestep[0]))}')  # Set title for each image`
+            
+            plt.tight_layout()
+            plt.show()
+            plt.savefig(str(name) + '.png')
+            plt.close(fig)
+            
+        return warped_gradients, sims, visualize_grad_var, add_loss
+    
+
+
+    def __call__(
+        self,
+        rgb: Float[Tensor, "B H W C"],
+        prompt_utils: PromptProcessorOutput,
+        elevation: Float[Tensor, "B"],
+        azimuth: Float[Tensor, "B"],
+        camera_distances: Float[Tensor, "B"],
+        rgb_as_latents=False,
+        noise_map=None,
+        guidance_eval=False,
+        idx_map=None,
+        inter_dict=None,
+        depth_masks=None,
+        same_timestep=True,
+        consistency_mask=False,
+        **kwargs,
+    ):
+        batch_size = rgb.shape[0]
+
+        rgb_BCHW = rgb.permute(0, 3, 1, 2)
+
+        assert rgb_as_latents == False, f"No latent space in {self.__class__.__name__}"
+        rgb_BCHW = rgb_BCHW * 2.0 - 1.0  # scale to [-1, 1] to match the diffusion range
+        latents = F.interpolate(
+            rgb_BCHW, (64, 64), mode="bilinear", align_corners=False
+        )  
+
+        # timestep ~ U(0.02, 0.98) to avoid very high/low noise level
+        if same_timestep:
+            t = torch.randint(
+                self.min_step,
+                self.max_step + 1,
+                [1],
+                dtype=torch.long,
+                device=self.device,
+            ).repeat(batch_size)
+        
+        else:
+            t = torch.randint(
+                self.min_step,
+                self.max_step + 1,
+                [batch_size],
+                dtype=torch.long,
+                device=self.device,
+            )
+
+        grad, guidance_eval_utils = self.compute_grad_sds(
+            latents, t, prompt_utils, elevation, azimuth, camera_distances, noise_map
+        )
+        
         grad = torch.nan_to_num(grad)
         # clip grad for stable training?
         if self.grad_clip_val is not None:
@@ -247,7 +368,26 @@ class DeepFloydGuidance(BaseObject):
         # SpecifyGradient is not straghtforward, use a reparameterization trick instead
         target = (latents - grad).detach()
         # d(loss)/d(latents) = latents - target = latents - (latents - grad) = grad
+        
+        add_loss = 0.
+
+        if kwargs["re_dict"] is not None:
+            if noise_map is not None:
+                saver = "const"
+            else:
+                saver = "rand"
+            
+            foldername = "sim_out/" + saver + "/" + kwargs["filename"]
+            
+            if not os.path.exists(foldername):
+                os.makedirs(foldername)
+            
+            name = foldername + "/_iter_" + str(kwargs["iter"]) + "_timestep_" + str(str(int(t[0])))
+            warped_gradients, sims, var, add_loss = self.grad_warp(kwargs["re_dict"], grad, timestep = t, name=name, iter=kwargs["iter"])
+            
         loss_sds = 0.5 * F.mse_loss(latents, target, reduction="sum") / batch_size
+
+        loss_sds += 5 * add_loss
 
         guidance_out = {
             "loss_sds": loss_sds,
@@ -255,16 +395,8 @@ class DeepFloydGuidance(BaseObject):
             "min_step": self.min_step,
             "max_step": self.max_step,
         }
-
+        
         if guidance_eval:
-            guidance_eval_utils = {
-                "use_perp_neg": prompt_utils.use_perp_neg,
-                "neg_guidance_weights": neg_guidance_weights,
-                "text_embeddings": text_embeddings,
-                "t_orig": t,
-                "latents_noisy": latents_noisy,
-                "noise_pred": torch.cat([noise_pred, predicted_variance], dim=1),
-            }
             guidance_eval_out = self.guidance_eval(**guidance_eval_utils)
             texts = []
             for n, e, a, c in zip(

@@ -1,0 +1,2 @@
+bash SD_c75_v6_interv_10_cosine_sim.sh
+bash SD_c75_v6_interv_60_cosine_sim.sh
