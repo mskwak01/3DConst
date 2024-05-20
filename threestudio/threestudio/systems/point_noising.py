@@ -221,9 +221,7 @@ def one_to_one_rasterizer(pts_proj_pix, pts_feats, pts_depth, device, ref_depth=
         mult = torch.tensor([1, -1, 0, 0, 0])
         
     for i in range(batch_size):
-        
-        
-        
+    
         canv = 10 * torch.ones((img_size, img_size, pts_per_pix, 2 + noise_channel)).to(device) * mult[None,None,None,...].to(device)
                 
         canv[y_coords[i], x_coords[i], rast_bin] = rasterizer_info[i]            

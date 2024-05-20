@@ -1,3 +1,5 @@
+
+
 prompts=(
     "a zoomed out DSLR photo of a ceramic lion, white background"
     "a DSLR photo of an owl"
@@ -36,8 +38,8 @@ do
 python launch.py \
     --config custom/threestudio-3dgs/configs/gau_stable_diffusion.yaml \
     --train \
-    --gpu 3 \
-    system.tag="disp_loss_0_5_immanuel_to_depth_only_5_deg" \
+    --gpu 0 \
+    system.tag="disp_loss_0_5_immanuel" \
     system.three_noise=true \
     system.pytorch_three=false \
     data.num_multiview=2 \
@@ -53,7 +55,7 @@ python launch.py \
     system.background_rand="ball" \
     system.noise_alter_interval=30 \
     system.consistency_mask=false \
-    data.multiview_deg=5 \
+    data.multiview_deg=10 \
     data.constant_viewpoints=true \
     data.num_const_views=10 \
     system.reprojection_info=false \
@@ -70,7 +72,7 @@ python launch.py \
     system.guidance.weight_disp_loss=1.0 \
     trainer.max_steps=3000 \
     system.guidance.backprop_grad=false \
-    system.guidance.debugging=true \
-    system.guidance.disp_loss_to_latent=false \
+    system.guidance.debugging=false \
+    system.guidance.disp_loss_to_latent=true \
 
 done

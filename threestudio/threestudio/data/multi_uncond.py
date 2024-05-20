@@ -174,7 +174,7 @@ class RandomCameraIterableDataset(IterableDataset, Updateable):
         
         self.batch_size = self.batch_sizes[0]
         
-        background_var = None
+        background_var = torch.ones(size=(self.batch_size,))[...,None]
         idx_keys = torch.linspace(0, self.batch_size-1, self.batch_size).int()[...,None]
         
         if self.cfg.constant_viewpoints:
@@ -223,19 +223,22 @@ class RandomCameraIterableDataset(IterableDataset, Updateable):
                 + (-25)
             )
         
-        elif self.cfg.constant_viewpoints:            
-            azimuth_cadidates = torch.linspace(start= 0, end=350, steps = self.cfg.num_const_views)   
-                        
-            # if not self.sample_every_view:  
+        elif self.cfg.constant_viewpoints:    
+            
+            # This is original code, use this instead #####
+            azimuth_candidates = torch.cat((torch.tensor([0]),torch.linspace(start=20, end=340, steps=self.cfg.num_const_views-1)))
+            ########
+            
+            # azimuth_candidates = torch.tensor([0., -10., -20., -80., -119., -152., 166., 127., 113., 66., 0., 0.])
+            
+            half_mask = ((azimuth_candidates > 180).float() * 360)
+            azimuth_candidates = azimuth_candidates - half_mask
+             
             cand_idx = torch.randperm(self.cfg.num_const_views)[:self.batch_size]
-            # else:
-            #     cand_idx = torch.linspace(start=0, end=self.cfg.num_const_views-1, steps=self.cfg.num_const_views).int()
+            # cand_idx = torch.linspace(0,self.cfg.num_const_views-1,self.cfg.num_const_views).int()[:self.batch_size]
+
+            azimuth_deg = azimuth_candidates[cand_idx]
             
-            azimuth_deg = azimuth_cadidates[cand_idx]
-            
-            # import pdb; pdb.set_trace()
-            
-            # if self.sample_every_view:
             idx_keys = torch.stack((cand_idx.repeat_interleave(self.cfg.num_multiview + 1), torch.linspace(start=0, end=self.cfg.num_multiview, steps=self.cfg.num_multiview+1).int().repeat(self.batch_size)),dim=-1)
             # idx_keys = torch.stack((cand_idx.repeat_interleave(num_multiview + 1), torch.linspace(start=0, end=num_multiview, steps=num_multiview+1).int().repeat(batch_size)),dim=0)
             

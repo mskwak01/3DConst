@@ -33,12 +33,7 @@ class GaussianSplatting(BaseLift3DSystem):
         gaussian_dynamic : bool = False
         calibration_value: int = 0
         three_noise: bool = False
-        multidiffusion: bool = False
         identical_noising: bool = False
-        gs_noise: bool = False
-        obj_only: bool = False
-        constant_noising: bool = False
-        cons_noise_alter: int = 0
         pts_radius: float = 0.02
         surf_radius: float = 0.05
         gradient_masking: bool = False
@@ -56,6 +51,9 @@ class GaussianSplatting(BaseLift3DSystem):
         constant_viewpoints: bool = False
         filename: str = "name"
         noise_channel: int = 4
+        vis_every_grad: bool = False
+        depth_warp: bool = True
+        everyview_vis_iter: int = 300
 
     cfg: Config
 
@@ -68,11 +66,6 @@ class GaussianSplatting(BaseLift3DSystem):
         self.image_dir = self.cfg.image_dir
         self.gaussian_dynamic = self.cfg.gaussian_dynamic
         self.three_noise = self.cfg.three_noise
-        self.multidiffusion = self.cfg.multidiffusion
-        
-        self.gs_noise = self.cfg.gs_noise
-        self.obj_only = self.cfg.obj_only
-        self.constant_noising = self.cfg.constant_noising
 
         self.background_tensor = torch.tensor(
             self.cfg.back_ground_color, dtype=torch.float32, device="cuda"
@@ -149,7 +142,7 @@ class GaussianSplatting(BaseLift3DSystem):
         for batch_idx in range(bs):
             # batch["batch_idx"] = batch_idx
             fovy = batch["fovy"][batch_idx]
-                        
+                                    
             w2c, proj, cam_p = get_cam_info_gaussian(
                 c2w=batch["c2w"][batch_idx], fovx=fovy, fovy=fovy, znear=0.1, zfar=100
             )
@@ -310,6 +303,29 @@ class GaussianSplatting(BaseLift3DSystem):
         else:
             opt, net_opt = self.optimizers()
             
+        batch_size = self.cfg.batch_size
+                
+        if self.cfg.vis_every_grad:
+            
+            all_size = batch["rays_o"].shape[0]
+            
+            if self.global_step != self.cfg.everyview_vis_iter:
+                batch_size = 2
+            
+                rand_list = torch.randint(0,all_size,(2,))
+                old_batch = batch
+                new_batch = {}
+                
+                for key in batch.keys():
+                    try:
+                        new_batch[key] = old_batch[key][rand_list]
+                    except:
+                        new_batch[key] = old_batch[key]
+                
+                batch = new_batch
+            
+            # import pdb; pdb.set_trace()
+            
         # if len(torch.unique(batch["idx_keys"][:,0])) != self.cfg.batch_size:
             
         #     original_batch = batch
@@ -339,6 +355,7 @@ class GaussianSplatting(BaseLift3DSystem):
         iteration = self.global_step
         
         noise_channel = self.cfg.noise_channel
+        back_noise_maps = None
         
         if self.threefuse:
             with torch.no_grad():                
@@ -556,10 +573,16 @@ class GaussianSplatting(BaseLift3DSystem):
                             new_rend = []
                             new_keys = []
                             
+                            # if self.global_step == 50:
+                            #     import pdb; pdb.set_trace()
+                            
                             for i, key in enumerate(key_list):
                                 if key in self.noise_map_dict["fore"].keys():
                                     fore_noise_list[i] = self.noise_map_dict["fore"][key]
-                                    back_noise_list[i] = self.noise_map_dict["back"][key]
+                                    
+                                    if self.cfg.background_rand == "ball":
+                                        back_noise_list[i] = self.noise_map_dict["back"][key]
+                                        
                                 else:
                                     new_rend.append(i)
                                     new_keys.append(key)
@@ -569,7 +592,6 @@ class GaussianSplatting(BaseLift3DSystem):
                                 
                                 if self.cfg.background_rand == "ball":
                                     new_back_noise_maps = reprojector(self.background_noise_pts, self.background_noise_vals, batch['c2w'][new_rend], torch.linalg.inv(batch['c2w'][new_rend]), batch["fovy"][new_rend], self.device, img_size=64, background=True, noise_channel=noise_channel).nan_to_num()    
-                                
                                 # import pdb; pdb.set_trace()
                                 
                                 for k, idx in enumerate(new_rend):
@@ -579,7 +601,7 @@ class GaussianSplatting(BaseLift3DSystem):
                                     if self.cfg.background_rand == "ball":
                                         self.noise_map_dict["back"][new_keys[k]] = new_back_noise_maps[k]
                                         back_noise_list[idx] = new_back_noise_maps[k]
-
+                                        
                             fore_noise_maps = torch.stack(fore_noise_list)
                             
                             if self.cfg.background_rand == "ball":
@@ -587,9 +609,7 @@ class GaussianSplatting(BaseLift3DSystem):
                                 
                         else:
                             fore_noise_maps = reprojector(self.noise_pts, self.noise_vals, batch['c2w'], torch.linalg.inv(batch['c2w']), batch["fovy"], self.device, ref_depth=surf_map, noise_channel=noise_channel).nan_to_num()
-                        
-                        proj_loc, idx_maps = None, None
-                        
+                                                
                         # import pdb; pdb.set_trace()
                         
                         # if self.cfg.reprojection_info is False:
@@ -607,7 +627,7 @@ class GaussianSplatting(BaseLift3DSystem):
                             
                         elif self.cfg.background_rand == "ball":
                             if back_noise_maps is None:               
-                                back_noise_maps = reprojector(self.background_noise_pts, self.background_noise_vals, batch['c2w'], torch.linalg.inv(batch['c2w']), batch["fovy"], self.device, img_size=64, background=True).nan_to_num()                        
+                                back_noise_maps = reprojector(self.background_noise_pts, self.background_noise_vals, batch['c2w'], torch.linalg.inv(batch['c2w']), batch["fovy"], self.device, img_size=64, background=True, noise_channel=noise_channel).nan_to_num()                     
                             back_mask = (fore_noise_maps == 0.).float()
                             noise_map = back_mask * back_noise_maps + fore_noise_maps
                         
@@ -625,27 +645,27 @@ class GaussianSplatting(BaseLift3DSystem):
                                             
                 else:
                     noise_map = None   
-                    loc_tensor = None
-                    inter_dict = None
+                    # loc_tensor = None
+                    # inter_dict = None
                     depth_masks = None  
                                     
             guidance_inp = out["comp_rgb"]  
-            
-            depth_warp = True
-            
-            if depth_warp:                
+                        
+            if self.cfg.depth_warp:                
                 dn_rays_d = F.interpolate(batch["rays_d"].permute(0,3,1,2), size=(64,64), mode='bilinear')
                 dn_rays_o = batch["rays_o"][:,0,0][...,None,None].repeat(1,1,64,64)
                 
-                re_dict = ray_reprojector(self.cfg.batch_size, dn_rays_d, dn_rays_o, out["comp_depth"], batch['c2w'], torch.linalg.inv(batch['c2w']), batch["fovy"], self.device, img_size=64)
+                re_dict = ray_reprojector(batch_size, dn_rays_d, dn_rays_o, out["comp_depth"], batch['c2w'], torch.linalg.inv(batch['c2w']), batch["fovy"], self.device, img_size=64)
 
             else:
                 re_dict = None
                 
+            # import pdb; pdb.set_trace()
+                
             guidance_out = self.guidance(
                 guidance_inp, self.prompt_utils, **batch, noise_map=noise_map, rgb_as_latents=False, 
-                idx_map=loc_tensor, inter_dict=inter_dict, depth_masks=depth_masks,  consistency_mask=self.cfg.consistency_mask,
-                re_dict=re_dict, iter = iteration, filename = self.cfg.filename
+                depth_masks=depth_masks, re_dict=re_dict, iter = iteration, filename = self.cfg.filename,
+                depth_maps = depth_maps
             )     
 
 
