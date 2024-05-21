@@ -1,5 +1,5 @@
 prompts=(
-    "a zoomed out DSLR photo of a ceramic lion, white background"
+    # "a zoomed out DSLR photo of a ceramic lion, white background"
     "a DSLR photo of an owl"
     "a cute meercat"
     "a rabbit on a pancake"
@@ -10,7 +10,7 @@ prompts=(
 )
 
 img_dirs=(
-    "/home/cvlab15/project/woojeong/wj_threestudio/images/a_ceramic_lion.png"
+    # "/home/cvlab15/project/woojeong/wj_threestudio/images/a_ceramic_lion.png"
     "/home/cvlab15/project/woojeong/naver/images/owl.jpeg"
     "/home/cvlab15/project/soowon/naver/3DConst/threestudio/load/images/meercat.png"
     "/home/cvlab15/project/woojeong/naver/images/rabbit-pancake.jpeg"
@@ -21,7 +21,7 @@ img_dirs=(
 )
 
 cal_vals=(
-    90
+    # 90
     45
     135
     90
@@ -68,11 +68,12 @@ python launch.py \
     system.guidance.use_sim_loss=false \
     system.guidance.weight_sim_loss=5.0 \
     system.guidance.weight_disp_loss=1.0 \
-    trainer.max_steps=3000 \
+    trainer.max_steps=1000 \
     system.guidance.backprop_grad=false \
     system.guidance.debugging=false \
     system.guidance.disp_loss_to_latent=false \
     system.guidance.only_geo=true \
+    trainer.val_check_interval=50 \
 
 done
 

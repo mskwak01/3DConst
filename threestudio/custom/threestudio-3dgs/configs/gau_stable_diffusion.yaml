@@ -1,8 +1,7 @@
 name: "gau_stable_diffusion"
 tag: "${rmspace:${system.prompt_processor.prompt},_}_${system.tag}"
-exp_root_dir: "outputs"
+exp_root_dir: "/mnt/data4/matthew/outputs"
 seed: 0
-
 data_type: "random-multiview-datamodule"
 data:
   batch_size: 2

@@ -67,6 +67,11 @@ class StableDiffusionGuidance(BaseObject):
         weight_disp_loss: float = 0.5
         disp_loss_to_latent: bool = False
         only_geo: bool = False
+        only_geo_front_on: bool = False
+        geo_start_int: int = 50
+        geo_interval: bool = False
+        geo_interval_len: int = 400
+        geo_re_optimize: bool = False
 
         """Maximum number of batch items to evaluate guidance for (for debugging) and to save on disk. -1 means save all items."""
         max_items_eval: int = 4
@@ -420,6 +425,7 @@ class StableDiffusionGuidance(BaseObject):
         return grad, guidance_eval_utils
 
 
+    
     def visualize_all(self, imgs, depths, azimuth, name = "test", iter=0):
         
         if not os.path.exists(name):
@@ -1018,10 +1024,68 @@ class StableDiffusionGuidance(BaseObject):
             
         # d(loss)/d(latents) = latents - target = latents - (latents - grad) = grad   
         if self.cfg.only_geo:
-            if kwargs["iter"] < 300:
-                total_loss = loss_sds
-            else:
-                total_loss = 0.
+            if not self.cfg.geo_re_optimize:
+                if kwargs["iter"] < self.cfg.geo_start_int :
+                    total_loss = loss_sds
+                    
+                else:
+                    if self.cfg.only_geo_front_on:                    
+                        azim_mask = (( azimuth < 30.) * (azimuth > -30.)).float()[...,None,None,None]
+                        
+                        latents = azim_mask * latents
+                        target = azim_mask * target
+                        
+                        loss_sds = 0.5 * F.mse_loss(latents, target, reduction="sum") / (torch.count_nonzero(azim_mask) + 1e-9)
+                        total_loss = loss_sds
+                        
+                        
+                    else:
+                        total_loss = 0. * loss_sds
+                        
+            if self.cfg.geo_re_optimize:
+                
+                if self.cfg.geo_interval:
+                
+                    if kwargs["iter"] < self.cfg.geo_start_int or (kwargs["iter"] // self.cfg.geo_interval_len) % 2 == 0:
+                        total_loss = loss_sds
+                        # print("good_" + str(kwargs["iter"]))
+
+                    else:
+                        if self.cfg.only_geo_front_on:                    
+                            azim_mask = (( azimuth < 30.) * (azimuth > -30.)).float()[...,None,None,None]
+                            
+                            latents = azim_mask * latents
+                            target = azim_mask * target
+                            
+                            loss_sds = 0.5 * F.mse_loss(latents, target, reduction="sum") / (torch.count_nonzero(azim_mask) + 1e-9)
+                            total_loss = loss_sds
+                            
+                            # print("geofront_" + str(kwargs["iter"]))
+
+                            
+                        else:
+                            total_loss = 0. * loss_sds
+                
+                else:
+                    resume_interval = 2000
+                    
+                    if kwargs["iter"] < self.cfg.geo_start_int or kwargs["iter"] > resume_interval:
+                        total_loss = loss_sds
+
+                    else:
+                        if self.cfg.only_geo_front_on:                    
+                            azim_mask = (( azimuth < 30.) * (azimuth > -30.)).float()[...,None,None,None]
+                            
+                            latents = azim_mask * latents
+                            target = azim_mask * target
+                            
+                            loss_sds = 0.5 * F.mse_loss(latents, target, reduction="sum") / (torch.count_nonzero(azim_mask) + 1e-9)
+                            total_loss = loss_sds
+                            
+                        else:
+                            total_loss = 0. * loss_sds                    
+                    
+                    
         else:
             total_loss = loss_sds
         
