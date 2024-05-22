@@ -467,7 +467,8 @@ class StableDiffusionGuidance(BaseObject):
 
     
     def grad_warp(self, re_dict, grad, timestep = [0], name = "test", iter=0, depths=None, azimuth=None, guide_utils = None, vis_grad=False):
-    
+        print('grad_warp')
+        
         src_inds = torch.tensor(re_dict["src_ind"])
         num_multiview = src_inds.shape[0] // torch.unique(src_inds).shape[0]
         center_idx = torch.unique(src_inds)
@@ -635,7 +636,11 @@ class StableDiffusionGuidance(BaseObject):
         
         ##############
         
+        grad_sim, grad_mag = self.warp_visualizer(grad, projections, depth_masks, re_dict, vis_magnitude=False)
+        return_dict['grad_sim'] = grad_sim
+        
         if vis_grad:
+            print('visualizing')
             
             # 
                                         
@@ -666,6 +671,7 @@ class StableDiffusionGuidance(BaseObject):
             
             grad_sim, grad_mag = self.warp_visualizer(grad, projections, depth_masks, re_dict, vis_magnitude=False)
             everything.append(grad_sim)
+            return_dict['grad_sim'] = grad_sim
             
             num_col = grad_sim.shape[0]
             row_names = [""] * num_col + ["grad_sim"] * num_col
@@ -705,12 +711,14 @@ class StableDiffusionGuidance(BaseObject):
                     ax.imshow(map[i], cmap='hot')  
                     ax.axis('off')  
                     ax.set_title(f'{row_names[i]}_step_{str(int(timestep[0]))}')  # Set title for each image`
-            
+                
             plt.tight_layout()
             plt.show()
             plt.savefig(str(name) + '.png')
             plt.close(fig)
-            
+        # else:
+            # raise ValueError("Not implemented yet")
+        
         # import pdb; pdb.set_trace()
             
         return add_loss, return_dict
@@ -854,10 +862,10 @@ class StableDiffusionGuidance(BaseObject):
             
 
         grad = torch.nan_to_num(grad)
-        # clip grad for stable training?
-        if self.grad_clip_val is not None:
-            grad = grad.clamp(-self.grad_clip_val, self.grad_clip_val)
-        
+        # # clip grad for stable training?
+        # if self.grad_clip_val is not None:
+        #     grad = grad.clamp(-self.grad_clip_val, self.grad_clip_val)
+        grad_origin = grad.clone()
 
         
         # import pdb; pdb.set_trace()
@@ -869,10 +877,6 @@ class StableDiffusionGuidance(BaseObject):
         # plt.colorbar()
         # plt.savefig('new.png')
         # import pdb; pdb.set_trace()
-
-        # loss = SpecifyGradient.apply(latents, grad)
-        # SpecifyGradient is not straghtforward, use a reparameterization trick instead
-        target = (latents - grad).detach()
                         
         if kwargs["re_dict"] is not None:
             if noise_map is not None:
@@ -887,7 +891,7 @@ class StableDiffusionGuidance(BaseObject):
             
             name = foldername + "/_iter_" + str(kwargs["iter"]) + "_timestep_" + str(str(int(t[0])))
             # warped_gradients, sims, var, add_loss = self.grad_warp(kwargs["re_dict"], grad, timestep = t, name=name, iter=kwargs["iter"])
-                        
+                
             if self.cfg.use_sim_loss:
                 if self.cfg.backprop_grad:
                     grad = latents - target
@@ -943,7 +947,23 @@ class StableDiffusionGuidance(BaseObject):
                     disp_loss = 0.5 * F.mse_loss(warp_grad, zero_pad, reduction="sum") / warp_grad.shape[0]
                 # import pdb; pdb.set_trace()
 
-
+            # breakpoint()
+            if self.cfg.grad_clip:
+                print("Grad clipping")
+                if not self.cfg.use_disp_loss and not self.cfg.use_sim_loss:
+                    _, return_dict = self.grad_warp(kwargs["re_dict"], pred_noise, timestep = t, name=name, iter=kwargs["iter"], depths = kwargs["depth_maps"], azimuth = azimuth, guide_utils = guidance_eval_utils)
+                grad_sim = return_dict["grad_sim"]
+                grad_sim = grad_sim.unsqueeze(1) # (B, 64, 64) -> (B, 1, 64, 64) add latent channel
+                grad_sim = (1 + grad_sim) / 2 
+                grad_clipped = (1 - grad_sim) * grad_origin.clamp(-self.grad_clip_val, self.grad_clip_val) + grad_sim * grad_origin
+            else:
+                print('No grad clipping')
+                grad_clipped = grad_origin
+                
+            # loss = SpecifyGradient.apply(latents, grad)
+            # SpecifyGradient is not straghtforward, use a reparameterization trick instead
+            target = (latents - grad_clipped).detach()
+            
             if self.cfg.vis_grad:
                 if kwargs["iter"] % 250 == 0:
                     for k in range(1,6):

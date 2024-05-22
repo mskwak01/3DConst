@@ -1,5 +1,5 @@
 name: "gau_stable_diffusion"
-tag: "${rmspace:${system.prompt_processor.prompt},_}_${system.tag}"
+tag: "${rmspace:${system.prompt_processor.prompt},_}_${system.tag}" #_${system.guidance.grad_clip}
 exp_root_dir: "outputs"
 seed: 0
 
@@ -124,7 +124,7 @@ trainer:
   max_steps: 5000
   log_every_n_steps: 1
   num_sanity_val_steps: 0
-  val_check_interval: 250
+  val_check_interval: 50
   enable_progress_bar: true
   precision: 32-true
   # deterministic: true

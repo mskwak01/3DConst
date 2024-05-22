@@ -107,6 +107,9 @@ class DreamFusion(BaseLift3DSystem):
         noise_channel = 4
         iteration = self.global_step
         
+        if iteration > 1000:
+            self.noise_alter_interval = 30 # * Noise Interval Alteration
+        
         if self.threefuse:
             with torch.no_grad():
                 points = self.cond_pc

@@ -343,8 +343,24 @@ def get_fov_gaussian(P):
 
 def get_cam_info_gaussian(c2w, fovx, fovy, znear, zfar):
     c2w = convert_pose(c2w)
-    world_view_transform = torch.inverse(c2w)
-
+    
+    try:
+        world_view_transform = torch.inverse(c2w)
+    except:
+        print('Error inverting c2w matrix')
+        # raise ValueError('Error inverting c2w matrix')
+        c2w[1][1] += 1e-7
+        world_view_transform = torch.inverse(c2w)
+        # add epsilon
+        '''
+        (Pdb) c2w
+        tensor([[ 0.7071,  0.7071, -0.6830,  0.9562],
+            [ 0.7071,  0.7071,  0.6830, -0.9562], << same row!
+            [ 0.0000,  0.0000, -0.2588,  0.3623],
+            [ 0.0000,  0.0000,  0.0000,  1.0000]], device='cuda:0')
+        '''
+        
+        
     world_view_transform = world_view_transform.transpose(0, 1).cuda().float()
     projection_matrix = (
         get_projection_matrix_gaussian(znear=znear, zfar=zfar, fovX=fovx, fovY=fovy)
