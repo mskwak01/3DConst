@@ -1,6 +1,6 @@
 name: "gau_stable_diffusion"
-tag: "${rmspace:${system.prompt_processor.prompt},_}_${system.tag}" #_${system.guidance.grad_clip}
-exp_root_dir: "outputs"
+tag: "${rmspace:${system.prompt_processor.prompt},_}_${system.tag}"
+exp_root_dir: "/mnt/data4/donghoon/const3D/outputs"
 seed: 0
 
 data_type: "random-multiview-datamodule"
