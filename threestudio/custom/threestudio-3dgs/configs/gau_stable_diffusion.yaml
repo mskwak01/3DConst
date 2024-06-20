@@ -59,17 +59,33 @@ system:
     pc_init_radius: 0.8
     opacity_init: 0.3
 
-  renderer_type: "diff-gaussian-rasterizer"
+  renderer_type: "diff-gaussian-rasterizer-shading"
   renderer:
     debug: false
-    invert_bg_prob: 0.5
+
+  # renderer_type: "diff-gaussian-rasterizer"
+  # renderer:
+  #   debug: false
+  #   invert_bg_prob: 0.5
     # scaling_modifier: 1.0
 
-  material_type: "no-material" # unused
+  # material_type: "no-material" # unused
+  # material:
+  #   n_output_dims: 0
+  material_type: "gaussian-diffuse-with-point-light-material"
   material:
-    n_output_dims: 0
+    ambient_only_steps: 2000
+    textureless_prob: 0.0
+    ambient_light_color: [1.0, 1.0, 1.0]
+    diffuse_light_color: [0.0, 0.0, 0.0]
+    soft_shading: true
 
-  background_type: "solid-color-background" # unused
+  # background_type: "solid-color-background" # unused
+  background_type: "gaussian-mvdream-neural-environment-map-background"
+  background:
+    color_activation: sigmoid
+    random_aug: true
+    random_aug_prob: 0.8
 
   prompt_processor_type: "stable-diffusion-prompt-processor"
   prompt_processor:

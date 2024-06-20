@@ -58,7 +58,8 @@ class DiffGaussian(Rasterizer):
         elif self.training and back_var is not None:
             invert_bg_color = True if back_var==0 else False
         else:
-            invert_bg_color = True
+            invert_bg_color = False
+        # import pdb; pdb.set_trace()
 
         bg_color = bg_color if not invert_bg_color else (1.0 - bg_color)
 
@@ -229,6 +230,7 @@ class DiffGaussian(Rasterizer):
         return {
             "render": rendered_image.clamp(0, 1),
             "depth": rendered_depth,
+            # "alpha": rendered_alpha,
             "noise_render": rendered_image.clamp(0, 1),
             "viewspace_points": screenspace_points,
             "visibility_filter": radii > 0,

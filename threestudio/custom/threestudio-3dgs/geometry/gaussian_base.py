@@ -397,9 +397,14 @@ class GaussianBaseModel(BaseGeometry):
 
     def create_from_pcd(self, pcd: BasicPointCloud, spatial_lr_scale: float):
         self.spatial_lr_scale = spatial_lr_scale
+        
+        # try:
         fused_point_cloud = torch.tensor(np.asarray(pcd.points)).float().cuda()
         fused_color = RGB2SH(torch.tensor(np.asarray(pcd.colors)).float().cuda())
-        # import pdb; pdb.set_trace()
+        # except:
+        #     fused_point_cloud = torch.tensor(pcd.points).float().cuda()
+        #     fused_color = RGB2SH(torch.tensor(pcd.colors)).float().cuda())
+
         features = (
             torch.zeros((fused_color.shape[0], 3, (self.max_sh_degree + 1) ** 2))
             .float()
@@ -411,7 +416,7 @@ class GaussianBaseModel(BaseGeometry):
         threestudio.info(
             f"Number of points at initialisation:{fused_point_cloud.shape[0]}"
         )
-
+        
         dist2 = torch.clamp_min(
             distCUDA2(torch.from_numpy(np.asarray(pcd.points)).float().cuda()),
             0.0000001,

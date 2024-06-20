@@ -59,7 +59,9 @@ class DiffGaussian(Rasterizer):
     @dataclass
     class Config(Rasterizer.Config):
         debug: bool = False
-
+        invert_bg_prob: float = 1.0
+        scaling_modifier: float = 1.0
+        
     cfg: Config
 
     def configure(
@@ -79,6 +81,7 @@ class DiffGaussian(Rasterizer):
         self,
         viewpoint_camera,
         bg_color: torch.Tensor,
+        back_var = None,
         scaling_modifier=1.0,
         override_color=None,
         **kwargs
@@ -89,8 +92,15 @@ class DiffGaussian(Rasterizer):
         Background tensor (bg_color) must be on GPU!
         """
         # use neural background
-        bg_color = bg_color * 0
-
+        if self.training and back_var is None:
+            invert_bg_color = np.random.rand() > self.cfg.invert_bg_prob
+        elif self.training and back_var is not None:
+            invert_bg_color = True if back_var==0 else False
+        else:
+            invert_bg_color = False
+        
+        bg_color = bg_color if not invert_bg_color else (1.0 - bg_color)
+        
         pc = self.geometry
         # Create zero tensor. We will use it to make pytorch return gradients of the 2D (screen-space) means
         screenspace_points = (
@@ -114,7 +124,7 @@ class DiffGaussian(Rasterizer):
             tanfovx=tanfovx,
             tanfovy=tanfovy,
             bg=bg_color,
-            scale_modifier=scaling_modifier,
+            scale_modifier=self.cfg.scaling_modifier,
             viewmatrix=viewpoint_camera.world_view_transform,
             projmatrix=viewpoint_camera.full_proj_transform,
             sh_degree=pc.active_sh_degree,
@@ -141,6 +151,7 @@ class DiffGaussian(Rasterizer):
         # from SHs in Python, do it. If not, then SH -> RGB conversion will be done by rasterizer.
         shs = None
         colors_precomp = None
+        
         if override_color is None:
             shs = pc.get_features
         else:
@@ -150,6 +161,8 @@ class DiffGaussian(Rasterizer):
         batch_idx = kwargs["batch_idx"]
         rays_d = kwargs["rays_d"][batch_idx]
         rays_o = kwargs["rays_o"][batch_idx]
+        # rays_d = kwargs["rays_d"]
+        # rays_o = kwargs["rays_o"]
         # rays_d_flatten: Float[Tensor, "Nr 3"] = rays_d.unsqueeze(0)
 
         comp_rgb_bg = self.background(dirs=rays_d.unsqueeze(0))
@@ -165,24 +178,26 @@ class DiffGaussian(Rasterizer):
             cov3D_precomp=cov3D_precomp,
         )
         _, H, W = rendered_image.shape
+        
+        # import pdb; pdb.set_trace()
 
         xyz_map = rays_o + rendered_depth.permute(1, 2, 0) * rays_d
         normal_map = self.normal_module(xyz_map.permute(2, 0, 1).unsqueeze(0))[0]
         normal_map = F.normalize(normal_map, dim=0)
 
-        light_positions = kwargs["light_positions"][batch_idx, None, None, :].expand(
-            H, W, -1
-        )
+        # light_positions = kwargs["light_positions"][batch_idx, None, None, :].expand(
+        #     H, W, -1
+        # )
 
-        rgb_fg = self.material(
-            positions=xyz_map,
-            shading_normal=normal_map.permute(1, 2, 0),
-            albedo=(rendered_image / (rendered_alpha + 1e-6)).permute(1, 2, 0),
-            light_positions=light_positions,
-        ).permute(2, 0, 1)
-        rendered_image = rgb_fg * rendered_alpha + (
-            1 - rendered_alpha
-        ) * comp_rgb_bg.reshape(H, W, 3).permute(2, 0, 1)
+        # rgb_fg = self.material(
+        #     positions=xyz_map,
+        #     shading_normal=normal_map.permute(1, 2, 0),
+        #     albedo=(rendered_image / (rendered_alpha + 1e-6)).permute(1, 2, 0),
+        #     light_positions=light_positions,
+        # ).permute(2, 0, 1)
+        # rendered_image = rgb_fg * rendered_alpha + (
+        #     1 - rendered_alpha
+        # ) * comp_rgb_bg.reshape(H, W, 3).permute(2, 0, 1)
         normal_map = normal_map * 0.5 * rendered_alpha + 0.5
         mask = rendered_alpha > 0.99
         normal_mask = mask.repeat(3, 1, 1)
@@ -192,13 +207,14 @@ class DiffGaussian(Rasterizer):
         # Retain gradients of the 2D (screen-space) means for batch dim
         if self.training:
             screenspace_points.retain_grad()
+        
+        # import pdb; pdb.set_trace()
 
         # Those Gaussians that were frustum culled or had a radius of 0 were not visible.
         # They will be excluded from value updates used in the splitting criteria.
         return {
             "render": rendered_image.clamp(0, 1),
             "normal": normal_map,
-            "mask": rendered_alpha,
             "depth": rendered_depth,
             "viewspace_points": screenspace_points,
             "visibility_filter": radii > 0,

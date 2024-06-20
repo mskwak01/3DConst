@@ -57,6 +57,34 @@ class StableDiffusionVSDGuidance(BaseModule):
 
         view_dependent_prompting: bool = True
         camera_condition_type: str = "extrinsics"
+        add_loss: str = "no_loss"
+        add_loss_stepping: bool = False
+        use_normalized_grad: bool = False
+        vis_grad: bool = False
+        visualization_type: str = "grad"
+        backprop_grad: bool = False
+        grad_cons_mask: bool = False
+        mask_w_timestep: bool = False
+        
+        debugging: bool = False
+        high_timesteps: bool = False
+        grad_thresh: float = 2.0
+        vis_every_thresh: float = 4.0
+        use_disp_loss: bool = False
+        use_sim_loss: bool = False
+        
+        weight_sim_loss: float = 5.0
+        weight_disp_loss: float = 0.5
+        disp_loss_to_latent: bool = False
+        only_geo: bool = False
+        only_geo_front_on: bool = False
+        geo_start_int: int = 50
+        geo_interval: bool = False
+        geo_interval_len: int = 400
+        geo_re_optimize: bool = False
+        geo_interv_different: bool = False
+        geo_intr_on: int = 5
+        geo_intr_off: int = 10
 
     cfg: Config
 

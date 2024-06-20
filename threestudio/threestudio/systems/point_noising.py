@@ -12,7 +12,7 @@ from torchvision.transforms import ToPILImage
 
 
 
-def reprojector(pts_locations, pts_feats, target_pose, target_pose_inv, fovy, device, ref_depth=None, img_size=64, background=False, **kwargs):
+def reprojector(pts_locations, pts_feats, target_pose, target_pose_inv, fovy, device, ref_depth=None, img_size=64, thresh=0.07, background=False, **kwargs):
     """
     Inverse
     Source: Unseen view
@@ -70,7 +70,7 @@ def reprojector(pts_locations, pts_feats, target_pose, target_pose_inv, fovy, de
     
     proj_pix = proj_loc.floor()
         
-    feature_maps, idx_maps = one_to_one_rasterizer(proj_pix, pts_feats, dist_to_tgt_origin, device, ref_depth, img_size=img_size, background=background, **kwargs)
+    feature_maps, idx_maps = one_to_one_rasterizer(proj_pix, pts_feats, dist_to_tgt_origin, device, ref_depth, img_size=img_size, thresh=thresh, background=background, **kwargs)
     
     if idx_maps is None:
         reprojection_results = feature_maps
@@ -80,7 +80,7 @@ def reprojector(pts_locations, pts_feats, target_pose, target_pose_inv, fovy, de
     return reprojection_results
 
 
-def ray_reprojector(batch_size, src_d, src_o, src_depth, target_pose, target_pose_inv, fovy, device, img_size=64, **kwargs):
+def ray_reprojector(batch_size, src_d, src_o, src_depth, target_pose, target_pose_inv, fovy, device, img_size=64, thresh=0.07, **kwargs):
     """
     Inverse
     Source: Unseen view
@@ -153,7 +153,7 @@ def ray_reprojector(batch_size, src_d, src_o, src_depth, target_pose, target_pos
             for i, tgt in enumerate(tgt_idx):
                 tgt_depth = src_depth[tgt, 0]
                 corres_depth = tgt_depth[proj_pix[i,:,0],proj_pix[i,:,1]]
-                depth_mask = ((dist_to_tgt_origin[i].squeeze().detach() - corres_depth) < 0.07).float()
+                depth_mask = ((dist_to_tgt_origin[i].squeeze().detach() - corres_depth) < thresh).float()
                 
                 re_dict["depth_masks"][f"{k}_{i}"] = depth_mask.reshape(1,img_size, img_size)
                             
@@ -288,7 +288,7 @@ def one_to_one_rasterizer(pts_proj_pix, pts_feats, pts_depth, device, ref_depth=
 
 
 
-def pts_noise_upscaler(points, pts_noise, noise_channel, n_upscaling, up_loc_rand, up_feat_rand, device, pts_var=0.04):
+def pts_noise_upscaler(points, pts_noise, noise_channel, n_upscaling, up_loc_rand, up_feat_rand, device, pts_var=0.05):
     
     # Increase the number of points by N (point location)
     loc_noising = (pts_var * up_loc_rand).to(device)

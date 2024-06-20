@@ -72,6 +72,10 @@ class StableDiffusionGuidance(BaseObject):
         geo_interval: bool = False
         geo_interval_len: int = 400
         geo_re_optimize: bool = False
+        geo_interv_different: bool = False
+        geo_intr_on: int = 5
+        geo_intr_off: int = 10
+        cfg_lastup: bool = False
 
         """Maximum number of batch items to evaluate guidance for (for debugging) and to save on disk. -1 means save all items."""
         max_items_eval: int = 4
@@ -166,6 +170,9 @@ class StableDiffusionGuidance(BaseObject):
         
         self.cos_similarity = nn.CosineSimilarity(dim=0, eps=1e-6)
         
+        self.int_counter = 0
+        self.sds_on = True
+        
         if self.cfg.use_normalized_grad:
             self.mse_loss = nn.MSELoss(reduction="mean")
             self.cos_loss = nn.CosineEmbeddingLoss(reduction="mean")
@@ -173,6 +180,7 @@ class StableDiffusionGuidance(BaseObject):
             self.mse_loss = nn.MSELoss(reduction="sum")
             self.cos_loss = nn.CosineEmbeddingLoss(reduction="sum")
 
+        self.guidance_scale = self.cfg.guidance_scale
         threestudio.info(f"Loaded Stable Diffusion!")
 
     @torch.cuda.amp.autocast(enabled=False)
@@ -265,7 +273,7 @@ class StableDiffusionGuidance(BaseObject):
                     -1, 1, 1, 1
                 ) * perpendicular_component(e_i_neg, e_pos)
 
-            noise_pred = noise_pred_uncond + self.cfg.guidance_scale * (
+            noise_pred = noise_pred_uncond + self.guidance_scale * (
                 e_pos + accum_grad
             )
         else:
@@ -295,7 +303,7 @@ class StableDiffusionGuidance(BaseObject):
             
             e_pos = noise_pred_text - noise_pred_uncond
             
-            noise_pred = noise_pred_text + self.cfg.guidance_scale * (
+            noise_pred = noise_pred_text + self.guidance_scale * (
                 noise_pred_text - noise_pred_uncond
             )
 
@@ -375,7 +383,7 @@ class StableDiffusionGuidance(BaseObject):
                     -1, 1, 1, 1
                 ) * perpendicular_component(e_i_neg, e_pos)
 
-            noise_pred = noise_pred_uncond + self.cfg.guidance_scale * (
+            noise_pred = noise_pred_uncond + self.guidance_scale * (
                 e_pos + accum_grad
             )
         else:
@@ -402,7 +410,7 @@ class StableDiffusionGuidance(BaseObject):
 
                 # perform guidance (high scale from paper!)
                 noise_pred_text, noise_pred_uncond = noise_pred.chunk(2)
-                noise_pred = noise_pred_text + self.cfg.guidance_scale * (
+                noise_pred = noise_pred_text + self.guidance_scale * (
                     noise_pred_text - noise_pred_uncond
                 )
 
@@ -741,6 +749,10 @@ class StableDiffusionGuidance(BaseObject):
         rgb_BCHW = rgb.permute(0, 3, 1, 2)
         latents: Float[Tensor, "B 4 64 64"]
         
+        if self.cfg.cfg_lastup and noise_map is not None: 
+            if kwargs["iter"] > 2300:
+                self.guidance_scale = 100
+        
         if batch_size > 30:
             with torch.no_grad():
                 if rgb_as_latents:
@@ -1044,7 +1056,39 @@ class StableDiffusionGuidance(BaseObject):
                         
             if self.cfg.geo_re_optimize:
                 
-                if self.cfg.geo_interval:
+                if self.cfg.geo_interv_different:
+                                        
+                    if self.sds_on: # SDS on, default state
+                        # print("on")
+                        total_loss = loss_sds
+                        self.int_counter += 1
+                        if self.int_counter == self.cfg.geo_intr_on:
+                            self.sds_on = False
+                            self.int_counter = 0
+
+                    else:
+                        if self.cfg.only_geo_front_on:       
+                            # print("off")
+             
+                            azim_mask = (( azimuth < 23.) * (azimuth > -23.)).float()[...,None,None,None]
+                            
+                            latents = azim_mask * latents
+                            target = azim_mask * target
+                            
+                            loss_sds = 0.5 * F.mse_loss(latents, target, reduction="sum") / (torch.count_nonzero(azim_mask) + 1e-9)
+                            total_loss = loss_sds
+                            
+                            # print("geofront_" + str(kwargs["iter"]))
+                            
+                        else:
+                            total_loss = 0. * loss_sds    
+                            
+                        self.int_counter += 1
+                        if self.int_counter == self.cfg.geo_intr_off:
+                            self.sds_on = True
+                            self.int_counter = 0        
+                                    
+                elif self.cfg.geo_interval:
                 
                     if kwargs["iter"] < self.cfg.geo_start_int or (kwargs["iter"] // self.cfg.geo_interval_len) % 2 == 0:
                         total_loss = loss_sds
@@ -1157,7 +1201,7 @@ class StableDiffusionGuidance(BaseObject):
                     -1, 1, 1, 1
                 ) * perpendicular_component(e_i_neg, e_pos)
 
-            noise_pred = noise_pred_uncond + self.cfg.guidance_scale * (
+            noise_pred = noise_pred_uncond + self.guidance_scale * (
                 e_pos + accum_grad
             )
         else:
@@ -1170,7 +1214,7 @@ class StableDiffusionGuidance(BaseObject):
             )
             # perform guidance (high scale from paper!)
             noise_pred_text, noise_pred_uncond = noise_pred.chunk(2)
-            noise_pred = noise_pred_text + self.cfg.guidance_scale * (
+            noise_pred = noise_pred_text + self.guidance_scale * (
                 noise_pred_text - noise_pred_uncond
             )
 

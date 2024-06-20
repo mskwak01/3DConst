@@ -6,6 +6,7 @@ from torchvision.utils import save_image
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import os
 from diffusers import (
     DDPMScheduler,
     DPMSolverMultistepScheduler,
@@ -24,6 +25,8 @@ from threestudio.utils.base import BaseModule
 from threestudio.utils.misc import C, cleanup, parse_version
 from threestudio.utils.typing import *
 
+from torchvision.utils import save_image
+import matplotlib.pyplot as plt
 
 class ToWeightsDType(nn.Module):
     def __init__(self, module: nn.Module, dtype: torch.dtype, this_device):
@@ -60,6 +63,34 @@ class StableDiffusionVSDGuidance(BaseModule):
         view_dependent_prompting: bool = True
         camera_condition_type: str = "extrinsics"
         multi_textenc: bool = True
+        add_loss: str = "no_loss"
+        add_loss_stepping: bool = False
+        use_normalized_grad: bool = False
+        vis_grad: bool = False
+        visualization_type: str = "grad"
+        backprop_grad: bool = False
+        grad_cons_mask: bool = False
+        mask_w_timestep: bool = False
+        
+        debugging: bool = False
+        high_timesteps: bool = False
+        grad_thresh: float = 2.0
+        vis_every_thresh: float = 4.0
+        use_disp_loss: bool = False
+        use_sim_loss: bool = False
+        
+        weight_sim_loss: float = 5.0
+        weight_disp_loss: float = 0.5
+        disp_loss_to_latent: bool = False
+        only_geo: bool = False
+        only_geo_front_on: bool = False
+        geo_start_int: int = 50
+        geo_interval: bool = False
+        geo_interval_len: int = 400
+        geo_re_optimize: bool = False
+        geo_interv_different: bool = False
+        geo_intr_on: int = 5
+        geo_intr_off: int = 10
 
     cfg: Config
 
@@ -253,8 +284,21 @@ class StableDiffusionVSDGuidance(BaseModule):
 
         self.grad_clip_val: Optional[float] = None
 
-        threestudio.info(f"Loaded Stable Diffusion!")
+        self.cos_similarity = nn.CosineSimilarity(dim=0, eps=1e-6)
+        
+        self.int_counter = 0
+        self.sds_on = True
+        
+        if self.cfg.use_normalized_grad:
+            self.mse_loss = nn.MSELoss(reduction="mean")
+            self.cos_loss = nn.CosineEmbeddingLoss(reduction="mean")
+        else:
+            self.mse_loss = nn.MSELoss(reduction="sum")
+            self.cos_loss = nn.CosineEmbeddingLoss(reduction="sum")
 
+        threestudio.info(f"Loaded Stable Diffusion!")
+        
+        
     @torch.cuda.amp.autocast(enabled=False)
     def set_min_max_steps(self, min_step_percent=0.02, max_step_percent=0.98):
         self.min_step = int(self.num_train_timesteps * min_step_percent)
@@ -493,6 +537,303 @@ class StableDiffusionVSDGuidance(BaseModule):
         finally:
             unet.class_embedding = class_embedding
 
+
+    def visualize_all(self, imgs, depths, azimuth, name = "test", iter=0):
+        
+        if not os.path.exists(name):
+            os.makedirs(name)
+        
+        for i, img in enumerate(imgs):
+            fin = torch.cat((img, depths[i]), dim=0)
+            save_image(fin, str(name) + f'/_{azimuth[i]:.4f}_deg' + '.png')
+        
+        return None
+    
+
+    def warp_visualizer(self, rep, projections, depth_masks, re_dict, vis_magnitude=False):
+        
+        target_rep = rep[re_dict["tgt_ind"]]
+        warped_gradients = depth_masks * F.grid_sample(target_rep, projections, mode='nearest')
+        
+        sim_maps = []
+        
+        for i, src in enumerate(re_dict["src_ind"]):
+            sim = self.cos_similarity(rep[src], warped_gradients[i])[None,...]
+            sim_maps.append(sim)
+                    
+        sims = torch.stack(sim_maps)
+        
+        valid_sim = (1 - depth_masks) * -1 + sims
+        # negative_sim = (1 - depth_masks) * -1 - sims
+        
+        fin_sim_maps = torch.cat((-torch.ones_like(sim)[None,...], valid_sim[:2], -torch.ones_like(sim)[None,...], valid_sim[2:4]),dim=0).squeeze()
+        
+        if vis_magnitude:
+            normed_rep = rep.norm(dim=1) / rep.norm(dim=1).mean((1,2))[...,None,None]
+            fin_mag_maps = normed_rep / 1.4
+            
+            d_1 = (1 - (1 - depth_masks[0]) * (1 - depth_masks[1]))
+            d_2 = (1 - (1 - depth_masks[2]) * (1 - depth_masks[3]))
+            
+            masks = torch.cat((d_1[None,...], depth_masks[:2], d_2[None,...], depth_masks[2:4]), dim=0).squeeze()
+            fin_mag_maps = (1 - masks) * -1 + masks * fin_mag_maps
+        
+        else:
+            fin_mag_maps = None
+        
+        return fin_sim_maps, fin_mag_maps
+
+    
+    def grad_warp(self, re_dict, grad, timestep = [0], name = "test", iter=0, depths=None, azimuth=None, guide_utils = None, vis_grad=False):
+    
+        src_inds = torch.tensor(re_dict["src_ind"])
+        num_multiview = src_inds.shape[0] // torch.unique(src_inds).shape[0]
+        center_idx = torch.unique(src_inds)
+        num_sets = center_idx.shape[0]
+        
+        gradient_masker = None
+        
+        return_dict = {}
+    
+        # re_dict = kwargs["re_dict"]
+        keylist = [key for key in re_dict["proj_maps"].keys()]
+        
+        projections = []
+        depth_masks = []
+                    
+        for key in keylist:
+            projections.append(re_dict["proj_maps"][key])
+            depth_masks.append(re_dict["depth_masks"][key])
+                    
+        projections = torch.stack(projections)
+        depth_masks = torch.stack(depth_masks)
+        
+        if self.cfg.visualization_type == "grad":
+            tgt_grads = grad[re_dict["tgt_ind"]]
+        elif self.cfg.visualization_type == "e_pos":
+            # import pdb; pdb.set_trace()       
+            if self.cfg.use_normalized_grad:
+                # import pdb; pdb.set_trace()
+                grad = guide_utils["e_pos"]
+                grad = grad / grad.norm(dim=1).mean()
+            else:     
+                grad = guide_utils["e_pos"]
+            
+            tgt_grads = grad[re_dict["tgt_ind"]]
+        else:
+            print("Not implemented yet")
+        
+        warped_gradients = depth_masks * F.grid_sample(tgt_grads, projections, mode='nearest')
+        
+        return_dict["warped_grad"] = warped_gradients
+        return_dict["depth_masks"] = depth_masks
+        
+        similiarty_maps = []
+        mse_maps = []
+        depth_maps = []
+        
+        depths = F.interpolate(depths, size=(64,64))[:,0]
+        tg = torch.ones_like(grad[0].reshape(4,-1)[0])
+        
+        add_loss = 0.
+        
+        dis_grad_1 = None
+        dis_grad_2 = None
+        
+        if self.cfg.debugging:
+            # import pdb; pdb.set_trace()
+            
+            mean_grad_1 = (depth_masks[0] * grad[0] + warped_gradients[0]) / 2
+            mean_grad_2 = (depth_masks[2] * grad[3] + warped_gradients[2]) / 2
+            
+            dis_grad_1 = grad[0] - mean_grad_1
+            dis_grad_2 = grad[3] - mean_grad_2
+            
+            return_dict["d1"] = dis_grad_1
+            return_dict["d2"] = dis_grad_2
+                
+        for i, src in enumerate(re_dict["src_ind"]):
+            # sim = self.cos_similarity(grad[src], warped_gradients[i])[None,...]
+            # similiarty_maps.append(sim)
+            
+            # if self.cfg.debugging:
+            #     import pdb; pdb.set_trace()
+            
+            if self.cfg.add_loss == "no_loss":
+                add_loss = 0.
+            
+            elif self.cfg.add_loss == "cosine_sim":
+                # if azimuth[src] < -30. or azimuth[src] > 30.:
+                add_loss += self.cos_loss(grad[src].reshape(4,-1).permute(1,0), warped_gradients[i].reshape(4,-1).permute(1,0), target=tg)
+                
+                # if self.cfg.debugging:
+                #     import pdb; pdb.set_trace()
+
+            elif self.cfg.add_loss == "cosine_dissim":
+                # import pdb; pdb.set_trace()
+                add_loss += 10 * self.cos_loss(grad[src].reshape(4,-1).permute(1,0), warped_gradients[i].reshape(4,-1).permute(1,0), target=-tg)
+                
+            elif self.cfg.add_loss == "mse_loss":
+                add_loss += self.mse_loss(grad[src] * depth_masks[i], warped_gradients[i])
+            
+            mse = ((grad[src] * depth_masks[i] - warped_gradients[i]) ** 2).mean(dim=0)
+            mse_maps.append(mse)
+            depth_maps.append(depths[src])
+        
+        mses = torch.stack(mse_maps)
+        mse_mask = (mses >= self.cfg.grad_thresh).float()
+        
+        # if iter > 700:
+        # import pdb; pdb.set_trace()
+            
+        if self.cfg.grad_cons_mask:
+
+            with torch.no_grad():
+                
+                img_size = projections.shape[1]
+                batch_size = grad.shape[0]
+                
+                coord_loc = projections.reshape(-1,2).fliplr().reshape(len(keylist),-1,2)
+                proj_loc = (coord_loc * (img_size / 2) + (img_size / 2)).clamp(0,img_size-0.51)
+                proj_pix = torch.round(proj_loc * depth_masks.permute(0,2,3,1).reshape(len(keylist), -1, 1)).int()
+                
+                mse_mask[:,0,0] = 0.
+                
+                # Temporary ###############################
+                
+                ma_1 = (1 - (1 - mse_mask[0]) * (1 - mse_mask[1]))
+                ma_2 = (1 - (1 - mse_mask[2]) * (1 - mse_mask[3]))
+                
+                comb_mse_mask = torch.stack((ma_1, ma_1, ma_2, ma_2))
+                mse_val = comb_mse_mask.reshape(len(keylist), -1)
+                
+                ########################################
+
+                y_c = proj_pix[...,0]
+                x_c = proj_pix[...,1]
+                
+                w_mse_masks = []
+                
+                tgt = 0
+                src = 0
+                            
+                for k in range(batch_size):
+                    
+                    if k in re_dict["tgt_ind"]:
+                    
+                        m_canvas = torch.zeros(img_size, img_size).to(self.device)
+                        m_canvas[y_c[tgt], x_c[tgt]] = mse_val[tgt]
+                        w_mse_masks.append(m_canvas)
+                        tgt += 1
+                    
+                    else:
+                        m_canvas = 1 - mse_mask[src]
+            
+                        for i in range(num_multiview-1):
+                            m_canvas *= 1 - mse_mask[src+i+1]
+                        w_mse_masks.append(1 - m_canvas)
+                        src += num_multiview
+            
+                gradient_masker = 1 - torch.stack(w_mse_masks).unsqueeze(1)
+                
+                return_dict["grad_mask"] = gradient_masker
+        
+        # if self.cfg.debugging:
+        #     if iter > 600:
+        #         import pdb; pdb.set_trace()
+                
+        #         depth_maps = torch.stack(depth_maps)
+        #         save_image(depth_maps.unsqueeze(1), "depth_maps.png")
+        #         save_image(mse_mask.unsqueeze(1), "mse_masks.png")
+        #         save_image((similiarty_maps[3] > 0.9).float(), "sim.png")
+
+                    # m_canvas[y_c[k], x_c[k]] = depth_masks[0].reshape(4096)
+              
+        # re_dict["src_ind"].shape / torch.unique(re_dict["src_ind"]).shape
+        
+        ##############
+        
+        if vis_grad:
+            
+            # 
+                                        
+                ##############        
+            
+                # var_canvas = torch.zeros(num_sets, 1+num_multiview, grad.shape[1], grad.shape[2], grad.shape[3]).to(self.device)        
+                # c = 0  
+                
+                # for i, ct in enumerate(center_idx):
+                #     var_canvas[i,0] = grad[ct]
+                #     w_mask = torch.ones_like(depth_masks[0])
+                    
+                #     for k in range(num_multiview):
+                #         var_canvas[i, k+1]= warped_gradients[c]
+                #         w_mask *= depth_masks[c]
+                        
+                #         c += 1
+                    
+                #     var_canvas[i] = var_canvas[i] * w_mask[None,...]
+
+                # visualize_grad_var = torch.var(var_canvas,dim=1).mean(1).repeat_interleave(center_idx.shape[0], dim=0)  
+                
+                ##############
+                
+            everything = [depths]
+            
+            visualize_keys = ["noise_uncond", "noise_text", "noise_pred"]
+            
+            grad_sim, grad_mag = self.warp_visualizer(grad, projections, depth_masks, re_dict, vis_magnitude=False)
+            everything.append(grad_sim)
+            
+            num_col = grad_sim.shape[0]
+            row_names = [""] * num_col + ["grad_sim"] * num_col
+                
+            for key in visualize_keys:
+            
+                rep_sim, rep_mag = self.warp_visualizer(guide_utils[key], projections, depth_masks, re_dict, vis_magnitude=True)
+                everything.append(rep_sim)
+                
+                row_names += [key + "cos_sim"] * num_col
+
+                if rep_mag is not None:
+                    everything.append(rep_mag)
+                    row_names += [key + "_magnitude"] * num_col
+                    
+            # Visualizer ##########
+            
+            # import pdb; pdb.set_trace()
+            
+            num_row = len(everything)
+            
+            everything = torch.cat(everything, dim=0)
+            map = everything.cpu().detach().numpy()
+            fig, axes = plt.subplots(num_row, num_col, figsize=(num_col * 4, num_row * 4 + 1))
+
+            # Flatten the axes array for easier iteration
+            axes = axes.flatten()
+
+            # Loop over the images and display them on the subplots
+            for i, ax in enumerate(axes):
+                if i < num_col:
+                    ax.imshow(map[i], cmap='gray') # Assuming grayscale images
+                    ax.axis('off')  
+                    ax.set_title(f'azi_({str(int(azimuth[i]))})_step_{str(int(timestep[0]))}')  # Set title for each image`
+                
+                else:
+                    ax.imshow(map[i], cmap='hot')  
+                    ax.axis('off')  
+                    ax.set_title(f'{row_names[i]}_step_{str(int(timestep[0]))}')  # Set title for each image`
+            
+            plt.tight_layout()
+            plt.show()
+            plt.savefig(str(name) + '.png')
+            plt.close(fig)
+            
+        # import pdb; pdb.set_trace()
+            
+        return add_loss, return_dict
+
+
     def compute_threefuse_grad_vsd(
         self,
         latents: Float[Tensor, "B 4 64 64"],
@@ -503,6 +844,7 @@ class StableDiffusionVSDGuidance(BaseModule):
         text_embeddings_vd_aux: Float[Tensor, "BB 77 1024"],
         text_embeddings_aux: Float[Tensor, "BB 77 1024"],
         noise_map,
+        same_timestep=False,
         **kwargs,
     ):
         B = latents.shape[0]
@@ -511,19 +853,28 @@ class StableDiffusionVSDGuidance(BaseModule):
 
         with torch.no_grad():
             # random timestamp
-            t = torch.randint(
-                self.min_step,
-                self.max_step + 1,
-                [B],
-                dtype=torch.long,
-                device=self.device,
-            )
-            # add noise
+            if same_timestep:
+                t = torch.randint(
+                    self.min_step,
+                    self.max_step + 1,
+                    [1],
+                    dtype=torch.long,
+                    device=self.device,
+                ).repeat(B)
+            else:
+                t = torch.randint(
+                    self.min_step,
+                    self.max_step + 1,
+                    [B],
+                    dtype=torch.long,
+                    device=self.device,
+                )            # add noise
                         
             if noise_map is not None:
                 noise = noise_map
             else:
                 noise = torch.randn_like(latents)
+                
             latents_noisy = self.scheduler.add_noise(latents, noise, t)
             # pred noise
             latent_model_input = torch.cat([latents_noisy] * 2, dim=0)
@@ -615,26 +966,54 @@ class StableDiffusionVSDGuidance(BaseModule):
         w = (1 - self.alphas[t]).view(-1, 1, 1, 1)
 
         grad = w * (noise_pred_pretrain - noise_pred_est)
-        return grad
+        
+        guidance_eval_utils = {
+            "text_embeddings": text_embeddings,
+            "t_orig": t,
+            "latents_noisy": latents_noisy,
+            "noise_pred": noise_pred_pretrain,
+            "noise_text" : noise_pred_pretrain_text,
+            "noise_uncond" : noise_pred_pretrain_uncond,
+            "e_pos": (noise_pred_pretrain - noise_pred_est),
+            "weight": w
+        }
+        
+        return grad, guidance_eval_utils
 
     def train_lora(
         self,
         latents: Float[Tensor, "B 4 64 64"],
         text_embeddings: Float[Tensor, "BB 77 768"],
         camera_condition: Float[Tensor, "B 4 4"],
+        same_timestep = False,
+        noise_map = None,
     ):
         B = latents.shape[0]
         latents = latents.detach().repeat(self.cfg.lora_n_timestamp_samples, 1, 1, 1)
 
-        t = torch.randint(
-            int(self.num_train_timesteps * 0.0),
-            int(self.num_train_timesteps * 1.0),
-            [B * self.cfg.lora_n_timestamp_samples],
-            dtype=torch.long,
-            device=self.device,
-        )
+        if same_timestep:
+            t = torch.randint(
+                int(self.num_train_timesteps * 0.0),
+                int(self.num_train_timesteps * 1.0),
+                [1 * self.cfg.lora_n_timestamp_samples],
+                dtype=torch.long,
+                device=self.device,
+            ).repeat(B)
+            
+        else:
+            t = torch.randint(
+                int(self.num_train_timesteps * 0.0),
+                int(self.num_train_timesteps * 1.0),
+                [B * self.cfg.lora_n_timestamp_samples],
+                dtype=torch.long,
+                device=self.device,
+            )
 
-        noise = torch.randn_like(latents)
+        if noise_map is not None:
+            noise = noise_map
+        else:
+            noise = torch.randn_like(latents)        
+        
         noisy_latents = self.scheduler_lora.add_noise(latents, noise, t)
         if self.scheduler_lora.config.prediction_type == "epsilon":
             target = noise
@@ -691,12 +1070,13 @@ class StableDiffusionVSDGuidance(BaseModule):
         camera_distances: Float[Tensor, "B"],
         mvp_mtx: Float[Tensor, "B 4 4"],
         c2w: Float[Tensor, "B 4 4"],
-        depth_map=None,
+        pts_depth_maps=None,
         noise_map=None,
         rgb_as_latents=False,
         idx_map=None,
         inter_dict=None,
         depth_masks=None,
+        same_timestep=True,
         **kwargs,
     ):
             
@@ -759,12 +1139,30 @@ class StableDiffusionVSDGuidance(BaseModule):
             raise ValueError(
                 f"Unknown camera_condition_type {self.cfg.camera_condition_type}"
             )
+        
+        if same_timestep:
+            t = torch.randint(
+                self.min_step,
+                self.max_step + 1,
+                [1],
+                dtype=torch.long,
+                device=self.device,
+            ).repeat(batch_size)
+        
+        else:
+            t = torch.randint(
+                self.min_step,
+                self.max_step + 1,
+                [batch_size],
+                dtype=torch.long,
+                device=self.device,
+            )
 
-        grad = self.compute_threefuse_grad_vsd(
+        grad, guidance_eval_utils = self.compute_threefuse_grad_vsd(
             latents,
             text_embeddings_vd,
             text_embeddings,
-            depth_map,
+            pts_depth_maps,
             camera_condition,
             text_embeddings_vd_aux,
             text_embeddings_aux,
@@ -780,20 +1178,233 @@ class StableDiffusionVSDGuidance(BaseModule):
         # d(loss)/d(latents) = latents - target = latents - (latents - grad) = grad
         target = (latents - grad).detach()
         
+        # import pdb; pdb.set_trace()
         
-        if depth_masks is not None:
-            # import pdb; pdb.set_trace()
-            latents = depth_masks * latents
-            target = depth_masks * target
-            # import pdb; pdb.set_trace()
+        if kwargs["re_dict"] is not None:
+            if noise_map is not None:
+                saver = "const"
+            else:
+                saver = "rand"
+            
+            foldername = "sim_out/" + saver + "/" + kwargs["filename"]
+            
+            if not os.path.exists(foldername):
+                os.makedirs(foldername)
+            
+            name = foldername + "/_iter_" + str(kwargs["iter"]) + "_timestep_" + str(str(int(t[0])))
+            # warped_gradients, sims, var, add_loss = self.grad_warp(kwargs["re_dict"], grad, timestep = t, name=name, iter=kwargs["iter"])
+                        
+            if self.cfg.use_sim_loss:
+                if self.cfg.backprop_grad:
+                    grad = latents - target
+                                            
+                if self.cfg.use_normalized_grad:
+                    grad_mean_norm = grad.norm(dim=1).mean()
+                    var_grad = grad / grad_mean_norm
+                    # add_loss, grad_mask = self.grad_warp(kwargs["re_dict"], var_grad, timestep = t, name=name, iter=kwargs["iter"], depths = kwargs["depth_maps"],  azimuth = azimuth, guide_utils = guidance_eval_utils)
+                    similarity_loss, return_dict = self.grad_warp(kwargs["re_dict"], var_grad, timestep = t, name=name, iter=kwargs["iter"], depths = kwargs["depth_maps"], azimuth = azimuth, guide_utils = guidance_eval_utils)
+                    
+                    if "grad_mask" in return_dict.keys():
+                        grad_mask = return_dict["grad_mask"]
+                        
+                else:
+                    # add_loss, grad_mask = self.grad_warp(kwargs["re_dict"], grad, timestep = t, name=name, iter=kwargs["iter"], depths = kwargs["depth_maps"], azimuth = azimuth, guide_utils = guidance_eval_utils)
+                    similarity_loss, return_dict = self.grad_warp(kwargs["re_dict"], grad, timestep = t, name=name, iter=kwargs["iter"], depths = kwargs["depth_maps"], azimuth = azimuth, guide_utils = guidance_eval_utils)
+                    
+                    if "grad_mask" in return_dict.keys():
+                        grad_mask = return_dict["grad_mask"]
+                    
+            
+            if self.cfg.use_disp_loss:
+                pred_noise = guidance_eval_utils["noise_pred"]
+                _, return_dict = self.grad_warp(kwargs["re_dict"], pred_noise, timestep = t, name=name, iter=kwargs["iter"], depths = kwargs["depth_maps"], azimuth = azimuth, guide_utils = guidance_eval_utils)
+                
+                pred_noise_warped = return_dict["warped_grad"]
+                depth_masks = return_dict["depth_masks"] 
+                
+                src_ind = kwargs["re_dict"]["src_ind"]
+                
+                pred_noise_pretrain = depth_masks * pred_noise[src_ind] 
+                                
+                warp_grad = guidance_eval_utils["weight"][src_ind] * (pred_noise_pretrain - pred_noise_warped)
+                
+                warp_grad = torch.nan_to_num(warp_grad)
+                # clip grad for stable training?
+                if self.grad_clip_val is not None:
+                    warp_grad = warp_grad.clamp(-self.grad_clip_val, self.grad_clip_val)
+                    
+                loss_to_latent = self.cfg.disp_loss_to_latent
+                        
+                if loss_to_latent:
+
+                    warp_target = (latents[src_ind] - warp_grad).detach()
+                    
+                    f_latents = depth_masks * latents[src_ind]
+                    f_target = depth_masks * warp_target
+                    
+                    disp_loss = 0.5 * F.mse_loss(f_latents, f_target, reduction="sum") / f_target.shape[0]
+                
+                else:
+                    zero_pad = torch.zeros_like(warp_grad).detach()
+                    disp_loss = 0.5 * F.mse_loss(warp_grad, zero_pad, reduction="sum") / warp_grad.shape[0]
+                # import pdb; pdb.set_trace()
+
+
+            if self.cfg.vis_grad:
+                if kwargs["iter"] % 250 == 0:
+                    for k in range(1,6):
+                        t = torch.ones_like(t) * k * 160
+                        
+                        vis_grad, vis_guidance_eval_utils = self.compute_threefuse_grad_vsd(
+                                                                    latents,
+                                                                    text_embeddings_vd,
+                                                                    text_embeddings,
+                                                                    pts_depth_maps,
+                                                                    camera_condition,
+                                                                    text_embeddings_vd_aux,
+                                                                    text_embeddings_aux,
+                                                                    noise_map,
+                                                                )
+                        name = foldername + "/_iter_" + str(kwargs["iter"]) + "_timestep_" + str(str(int(t[0])))
+                        grad_mean_norm = vis_grad.norm(dim=1).mean()
+                        var_grad = vis_grad / grad_mean_norm
+                        _, _ = self.grad_warp(kwargs["re_dict"], var_grad, timestep = t, 
+                                                name=name, iter=kwargs["iter"], depths = kwargs["depth_maps"], azimuth = azimuth, guide_utils = vis_guidance_eval_utils, vis_grad=True)
+                
+            
+            if self.cfg.grad_cons_mask:
+                if self.cfg.mask_w_timestep and t[0] < 400:
+                    pass
+                    # No masking if t is smaller than 400
+                
+                else:
+                    front_views = ((-30. < azimuth) * (azimuth < 30.)).float()[...,None,None,None].to(self.device)
+                    fin_grad_mask = torch.ones_like(grad_mask) * front_views +  grad_mask * (1-front_views)
+                    latents = fin_grad_mask * latents
+                    target = fin_grad_mask * target
         
         loss_vsd = 0.5 * F.mse_loss(latents, target, reduction="sum") / batch_size
+
+        # import pdb; pdb.set_trace()
+
+        if self.cfg.only_geo:
+            if not self.cfg.geo_re_optimize:
+                if kwargs["iter"] < self.cfg.geo_start_int :
+                    total_loss = loss_sds
+                    
+                else:
+                    if self.cfg.only_geo_front_on:                    
+                        azim_mask = (( azimuth < 30.) * (azimuth > -30.)).float()[...,None,None,None]
+                        
+                        latents = azim_mask * latents
+                        target = azim_mask * target
+                        
+                        loss_sds = 0.5 * F.mse_loss(latents, target, reduction="sum") / (torch.count_nonzero(azim_mask) + 1e-9)
+                        total_loss = loss_sds
+                        
+                        
+                    else:
+                        total_loss = 0. * loss_sds
+                        
+            if self.cfg.geo_re_optimize:
+                
+                if self.cfg.geo_interv_different:
+                                        
+                    if self.sds_on: # SDS on, default state
+                        # print("on")
+                        total_loss = loss_sds
+                        self.int_counter += 1
+                        if self.int_counter == self.cfg.geo_intr_on:
+                            self.sds_on = False
+                            self.int_counter = 0
+
+                    else:
+                        if self.cfg.only_geo_front_on:       
+                            # print("off")
+             
+                            azim_mask = (( azimuth < 23.) * (azimuth > -23.)).float()[...,None,None,None]
+                            
+                            latents = azim_mask * latents
+                            target = azim_mask * target
+                            
+                            loss_sds = 0.5 * F.mse_loss(latents, target, reduction="sum") / (torch.count_nonzero(azim_mask) + 1e-9)
+                            total_loss = loss_sds
+                            
+                            # print("geofront_" + str(kwargs["iter"]))
+                            
+                        else:
+                            total_loss = 0. * loss_sds    
+                            
+                        self.int_counter += 1
+                        if self.int_counter == self.cfg.geo_intr_off:
+                            self.sds_on = True
+                            self.int_counter = 0        
+                                    
+                elif self.cfg.geo_interval:
+                
+                    if kwargs["iter"] < self.cfg.geo_start_int or (kwargs["iter"] // self.cfg.geo_interval_len) % 2 == 0:
+                        total_loss = loss_sds
+                        # print("good_" + str(kwargs["iter"]))
+
+                    else:
+                        if self.cfg.only_geo_front_on:                    
+                            azim_mask = (( azimuth < 30.) * (azimuth > -30.)).float()[...,None,None,None]
+                            
+                            latents = azim_mask * latents
+                            target = azim_mask * target
+                            
+                            loss_sds = 0.5 * F.mse_loss(latents, target, reduction="sum") / (torch.count_nonzero(azim_mask) + 1e-9)
+                            total_loss = loss_sds
+                            
+                            # print("geofront_" + str(kwargs["iter"]))
+
+                            
+                        else:
+                            total_loss = 0. * loss_sds
+                
+                else:
+                    resume_interval = 2000
+                    
+                    if kwargs["iter"] < self.cfg.geo_start_int or kwargs["iter"] > resume_interval:
+                        total_loss = loss_sds
+
+                    else:
+                        if self.cfg.only_geo_front_on:                    
+                            azim_mask = (( azimuth < 30.) * (azimuth > -30.)).float()[...,None,None,None]
+                            
+                            latents = azim_mask * latents
+                            target = azim_mask * target
+                            
+                            loss_sds = 0.5 * F.mse_loss(latents, target, reduction="sum") / (torch.count_nonzero(azim_mask) + 1e-9)
+                            total_loss = loss_sds
+                            
+                        else:
+                            total_loss = 0. * loss_sds                    
+                    
+                    
+        else:
+            total_loss = loss_vsd
+        
+        if self.cfg.use_sim_loss:
+            if self.cfg.add_loss_stepping:
+                if loss_sds < 100.:
+                    total_loss += self.cfg.weight_sim_loss * similarity_loss
+                else:
+                    total_loss += self.cfg.weight_sim_loss * 10 * similarity_loss
+                    
+            else:
+                total_loss += self.cfg.weight_sim_loss * similarity_loss
+            
+        if self.cfg.use_disp_loss:
+            total_loss += disp_loss
+        
+        # import pdb; pdb.set_trace()
 
         loss_lora = self.train_lora(latents, text_embeddings_aux, camera_condition)
 
         
         return {
-            "loss_vsd": loss_vsd,
+            "loss_vsd": total_loss,
             "loss_lora": loss_lora,
             "grad_norm": grad.norm(),
             "min_step": self.min_step,

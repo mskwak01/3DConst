@@ -1,6 +1,6 @@
 name: "dreamfusion-sd-noise"
 tag: "${rmspace:${system.prompt_processor.prompt},_}_${system.tag}"
-exp_root_dir: "outputs"
+exp_root_dir: "/mnt/data4/matthew/outputs"
 seed: 0
 
 data_type: "random-multiview-datamodule"

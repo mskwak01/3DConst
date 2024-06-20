@@ -1,6 +1,6 @@
 name: "prolificdreamer-noise"
 tag: "${rmspace:${system.prompt_processor.prompt},_}_${system.tag}"
-exp_root_dir: "outputs"
+exp_root_dir:  "/mnt/data4/matthew/outputs"
 seed: 0
 
 data_type: "random-multiview-datamodule"
@@ -11,7 +11,7 @@ data:
   width: [64, 512]
   height: [64, 512]
   resolution_milestones: [5000]
-  camera_distance_range: [1.4, 1.8]
+  camera_distance_range: [1.4, 1.4]
   fovy_range: [60, 70]
   elevation_range: [0, 45]
   camera_perturb: 0.
@@ -24,13 +24,14 @@ data:
 
 system_type: "prolificdreamer-noise-system"
 system:
+  filename: ${tag}
   stage: coarse
-
   threefuse: true
   image_dir: "/home/cvlab16/projects/diffusion/matthew/matt_threestudio/threestudio/tower2.png"
+  batch_size: ${data.batch_size}
   three_noise: true
   identical_noising: true
-
+  constant_viewpoints: ${data.constant_viewpoints}
   geometry_type: "implicit-volume"
   geometry:
     radius: 1.0
