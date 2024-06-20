@@ -51,6 +51,8 @@ class ProlificDreamer(BaseLift3DSystem):
         depth_warp: bool = True
         everyview_vis_iter: int = 300
         noise_interval_schedule: bool = True
+        visualize_noise: bool = False
+        visualize_noise_res: int = 64
 
 
     cfg: Config
@@ -70,6 +72,8 @@ class ProlificDreamer(BaseLift3DSystem):
         self.threefuse = self.cfg.threefuse
         self.image_dir = self.cfg.image_dir        
         self.three_noise = self.cfg.three_noise
+        
+        # import pdb; pdb.set_trace()
         
         if self.threefuse is True:
             device = self.device
@@ -117,11 +121,62 @@ class ProlificDreamer(BaseLift3DSystem):
         depth_map = depth_maps.permute(0,2,3,1).detach()
         depths = render_out['depth'].permute(0,3,1,2)
         
-        return {
+        if self.cfg.visualize_noise:
+            with torch.no_grad():
+            
+                noise_channel = 4
+                surf_radius = 0.08 
+                
+                surface_raster_settings = PointsRasterizationSettings(
+                        image_size= self.cfg.visualize_noise_res,
+                        radius = surf_radius,
+                        points_per_pixel = 2
+                    )
+                
+                points = torch.tensor(self.cond_pc.coords, dtype=torch.float32).clone().detach().to(self.device)
+                num_points = points.shape[0]
+                
+                if self.noise_pts is None:
+                    # num_points = self.cond_pc  
+                    
+                    noise_tensor = torch.randn(num_points, noise_channel).to(self.device)
+                    loc_rand = torch.randn(num_points, 3, self.cfg.n_pts_upscaling)
+                    feat_rand = torch.randn(num_points, noise_channel, self.cfg.n_pts_upscaling)
+                    
+                    self.noise_pts, self.noise_vals = pts_noise_upscaler(points, noise_tensor, noise_channel, self.cfg.n_pts_upscaling, loc_rand, feat_rand, self.device, pts_var=0.03)
+                    
+                    if self.cfg.background_rand == "ball":
+                        self.background_noise_pts, self.background_noise_vals = sphere_pts_generator(self.device, noise_channel)
+
+                    self.noise_map_dict = {"fore": {}, "back": {}}
+
+                surf_map = render_depth_from_cloud(points, batch, surface_raster_settings, cam_radius, device, dynamic_points=True, cali=90, raw=True)           
+                fore_noise_maps = reprojector(self.noise_pts, self.noise_vals, batch['c2w'], torch.linalg.inv(batch['c2w']), batch["fovy"], self.device, img_size=self.cfg.visualize_noise_res, ref_depth=surf_map, noise_channel=noise_channel).nan_to_num()
+                                        
+                # n_map = fore_noise_maps + (fore_noise_maps == 0).float()
+                n_map = fore_noise_maps
+                n_full_map = fore_noise_maps + (fore_noise_maps == 0).float() * torch.randn_like(fore_noise_maps)
+
+                fore_noise = F.interpolate(n_map, size=(512, 512), mode="nearest").permute(0,2,3,1)[...,:3]
+                new_n = F.interpolate(torch.randn_like(fore_noise_maps) * (fore_noise_maps != 0.).float(), size=(512, 512), mode="nearest").permute(0,2,3,1)[...,:3]
+        
+        
+        outputs = {
             **render_out,
             "comp_depth" : F.interpolate(depths, size=(64,64), mode='bilinear'),
             "pts_depth" : depth_map
         }
+        
+        if self.cfg.visualize_noise:
+            outputs.update(
+                {
+                    "noise_img" : fore_noise,
+                    "full_noise" : new_n,
+                    # "raw_depth": torch.stack(depths, dim=0)
+                }
+            )
+            
+        return outputs
 
     def on_fit_start(self) -> None:
         super().on_fit_start()
@@ -414,7 +469,19 @@ class ProlificDreamer(BaseLift3DSystem):
                     "img": out["pts_depth"][0, :, :, 0],
                     "kwargs": {"cmap": None, "data_range": (0, 1)},
                 },
-            ],
+            ]
+            + (
+                [
+                    {
+                        "type": "rgb",
+                        "img": out["noise_img"][0],
+                        "kwargs": {"data_format": "HWC"},
+                    }
+                ]
+                if "noise_img" in out
+                else []
+            ) 
+            ,
             name="validation_step",
             step=self.true_global_step,
         )
@@ -475,7 +542,19 @@ class ProlificDreamer(BaseLift3DSystem):
                     "img": out["opacity"][0, :, :, 0],
                     "kwargs": {"cmap": None, "data_range": (0, 1)},
                 },
-            ],
+            ]
+            + (
+                [
+                    {
+                        "type": "rgb",
+                        "img": out["noise_img"][0],
+                        "kwargs": {"data_format": "HWC"},
+                    }
+                ]
+                if "noise_img" in out
+                else []
+            ) 
+            ,
             name="test_step",
             step=self.true_global_step,
         )

@@ -254,7 +254,6 @@ class GaussianSplatting(BaseLift3DSystem):
         ########
         
         if self.cfg.visualize_noise:
-        
             with torch.no_grad():
             
                 noise_channel = 4
@@ -283,18 +282,11 @@ class GaussianSplatting(BaseLift3DSystem):
                 surf_map = render_depth_from_cloud(points, batch, surface_raster_settings, cam_radius, device, dynamic_points=self.gaussian_dynamic, cali=90, raw=True)           
                 fore_noise_maps = reprojector(self.noise_pts, self.noise_vals, batch['c2w'], torch.linalg.inv(batch['c2w']), batch["fovy"], self.device, img_size=self.cfg.visualize_noise_res, ref_depth=surf_map, noise_channel=noise_channel).nan_to_num()
                                         
-            n_map = fore_noise_maps + (fore_noise_maps == 0).float()
-            n_full_map = fore_noise_maps + (fore_noise_maps == 0).float() * torch.randn_like(fore_noise_maps)
-            
-            # dn_rays_d = F.interpolate(batch["rays_d"].permute(0,3,1,2), size=(64,64), mode='bilinear')
-            # dn_rays_o = batch["rays_o"][:,0,0][...,None,None].repeat(1,1,64,64)
-            
-            # batch_size = self.cfg.batch_size
-            
-            # re_dict = ray_reprojector(batch_size, dn_rays_d, dn_rays_o, out["comp_depth"], batch['c2w'], torch.linalg.inv(batch['c2w']), batch["fovy"], self.device, img_size=64)
+                n_map = fore_noise_maps + (fore_noise_maps == 0).float()
+                n_full_map = fore_noise_maps + (fore_noise_maps == 0).float() * torch.randn_like(fore_noise_maps)
 
-            
-        # import pdb; pdb.set_trace()
+                fore_noise = F.interpolate(n_map, size=(512, 512), mode="nearest").permute(0,2,3,1)[...,:3]
+                new_n = F.interpolate(torch.randn_like(fore_noise_maps) * (fore_noise_maps != 0.).float(), size=(512, 512), mode="nearest").permute(0,2,3,1)[...,:3]
         
         outputs = {
             "comp_rgb": torch.stack(renders, dim=0).permute(0, 2, 3, 1),
@@ -310,8 +302,8 @@ class GaussianSplatting(BaseLift3DSystem):
         if self.cfg.visualize_noise:
             outputs.update(
                 {
-                    "noise_img" : n_map.permute(0,2,3,1)[...,:3],
-                    "full_noise" : n_full_map.permute(0,2,3,1)[...,:3],
+                    "noise_img" : fore_noise,
+                    "full_noise" : new_n,
                     "raw_depth": torch.stack(depths, dim=0)
                 }
             )
@@ -711,181 +703,6 @@ class GaussianSplatting(BaseLift3DSystem):
 
             else:
                 re_dict = None
-                
-                
-            if self.cfg.visualize_noise:
-
-                with torch.no_grad():
-                
-                    noise_channel = 4
-                    surf_radius = 0.08 
-                    
-                    surface_raster_settings = PointsRasterizationSettings(
-                            image_size= self.cfg.visualize_noise_res,
-                            radius = surf_radius,
-                            points_per_pixel = 2
-                        )
-                    
-                    # if self.noise_pts is None:
-                    
-                    original = []
-                    nearest = []
-                    bilinear = []
-                    ours = []
-                    int_wa = []
-                    
-                    for i in range(3):
-                        num_points = points.shape[0]
-                        
-                        noise_tensor = torch.randn(num_points, noise_channel).to(self.device)
-                        loc_rand = torch.randn(num_points, 3, self.cfg.n_pts_upscaling)
-                        feat_rand = torch.randn(num_points, noise_channel, self.cfg.n_pts_upscaling)
-                        
-                        self.noise_pts, self.noise_vals = pts_noise_upscaler(points, noise_tensor, noise_channel, self.cfg.n_pts_upscaling, loc_rand, feat_rand, self.device, pts_var=0.003)
-                        
-                        if self.cfg.background_rand == "ball":
-                            self.background_noise_pts, self.background_noise_vals = sphere_pts_generator(self.device, noise_channel)
-
-                        self.noise_map_dict = {"fore": {}, "back": {}}
-
-                        surf_map = render_depth_from_cloud(points, batch, surface_raster_settings, cam_radius, device, dynamic_points=self.gaussian_dynamic, cali=90, raw=True)           
-                        fore_noise_maps = reprojector(self.noise_pts, self.noise_vals, batch['c2w'], torch.linalg.inv(batch['c2w']), batch["fovy"], self.device, img_size=self.cfg.visualize_noise_res, ref_depth=surf_map, noise_channel=noise_channel).nan_to_num()
-                                                
-                        n_map = fore_noise_maps + (fore_noise_maps == 0).float()
-                        n_full_map = fore_noise_maps + (fore_noise_maps == 0).float() * torch.randn_like(fore_noise_maps)
-                        
-                        # Warp
-                        batch_size = self.cfg.batch_size
-
-                        dn_rays_d = F.interpolate(batch["rays_d"].permute(0,3,1,2), size=(64,64), mode='bilinear')
-                        dn_rays_o = batch["rays_o"][:,0,0][...,None,None].repeat(1,1,64,64)
-                                            
-                        re_dict = ray_reprojector(batch_size, dn_rays_d, dn_rays_o, out["comp_depth"], batch['c2w'], torch.linalg.inv(batch['c2w']), batch["fovy"], self.device, img_size=64)
-                        
-                        w_depth = F.interpolate(out["raw_depth"], size=(129,129), mode='bilinear')
-                        
-                        hi_rays_d = F.interpolate(batch["rays_d"].permute(0,3,1,2), size=(129,129), mode='bilinear')
-                        hi_rays_o = batch["rays_o"][:,0,0][...,None,None].repeat(1,1,129,129)
-                                                
-                        hi_dict = ray_reprojector(batch_size, hi_rays_d, hi_rays_o, w_depth, batch['c2w'], torch.linalg.inv(batch['c2w']), batch["fovy"], self.device, img_size=129)
-
-                        keylist = [key for key in re_dict["proj_maps"].keys()]
-            
-                        projections = []
-                        depth_masks = []
-                        
-                        hi_proj = []
-                        hi_cons = []
-                                    
-                        for key in keylist:
-                            projections.append(re_dict["proj_maps"][key])
-                            depth_masks.append(re_dict["depth_masks"][key])
-                            hi_proj.append(hi_dict["proj_maps"][key])
-                            hi_cons.append(hi_dict["depth_masks"][key])
-                                    
-                        projections = torch.stack(projections)
-                        depth_masks = torch.stack(depth_masks)
-                        
-                        # import pdb; pdb.set_trace()
-                        
-                        src_noise = fore_noise_maps[re_dict["src_ind"]]
-                        tgt_noise = fore_noise_maps[re_dict["tgt_ind"]]
-                        
-                        up_level = 3        
-                        upscaled_noise = cond_noise_sampling(tgt_noise[:1], level=up_level)
-                        
-                        vert_dict = get_noise_vertices(res=64)
-                                                
-                        final_projection = hi_proj[0].reshape(-1,2)
-                        cons_mask = hi_cons[0]
-                        
-                        # import pdb; pdb.set_trace()
-
-                        warped_image = integrated_warping(upscaled_noise, final_projection, vert_dict, up_level=up_level, cons_mask=cons_mask, fin_noise_resolution=64)
-                        
-                        
-                        int_wa.append(warped_image[0])
-                        # import pdb; pdb.set_trace()
-                        nearest_warped_noise = depth_masks * F.grid_sample(tgt_noise, projections, mode='nearest')
-                        bilinear_warped_noise = depth_masks * F.grid_sample(tgt_noise, projections, mode='bilinear')
-                        
-                        original.append(tgt_noise[0])
-                        nearest.append(nearest_warped_noise[0])
-                        bilinear.append(bilinear_warped_noise[0])
-                        ours.append(src_noise[0])
-                        
-                        # new = depth_masks * F.grid_sample(marker, projections, mode='nearest')
-                        #####                    
-                    length = len(original) 
-                    
-                    import pdb; pdb.set_trace()
-                    
-                    new = nearest[0][torch.nonzero(nearest[0])[:,0], torch.nonzero(nearest[0])[:,1], torch.nonzero(nearest[0])[:,2]]
-                    
-                                        
-                    plot_gaussians(torch.unique(ours[0]))
-
-                        
-                    ori = torch.stack(original).cpu().detach().numpy()[:,0,30:34,30:34].reshape(-1,16)
-                    near = torch.stack(nearest).cpu().detach().numpy()[:,0,30:34,31:35].reshape(-1,16)
-                    bil = torch.stack(bilinear).cpu().detach().numpy()[:,0,30:34,31:35].reshape(-1,16)
-                    our = torch.stack(ours).cpu().detach().numpy()[:,0,30:34,31:35].reshape(-1,16)
-                    wa = torch.stack(int_wa).cpu().detach().numpy()[:,0,30:34,31:35].reshape(-1,16)
-                    
-                    # save_image(torch.tensor(our[0]),"z_our.png")
-                    # save_image(torch.tensor(bil[0]),"z_bil.png")
-                    # save_image(torch.tensor(near[0]),"z_near.png")
-                    # save_image(torch.tensor(ori[0]),"z_ori.png")
-                                        
-                    import pdb; pdb.set_trace()
-                    
-                    # save_image(torch.tensor(our[0]),"z_our.png")
-                    
-                    near_res = np.cov(ori, near, rowvar=False)[:16,16:]
-                    bil_res = np.cov(ori, bil, rowvar=False)[:16,16:]
-                    our_res = np.cov(ori, our, rowvar=False)[:16,16:]
-                    warp_res = np.cov(ori, wa, rowvar=False)[:16,16:]      
-                          
-                    plt.figure(figsize=(10, 8))
-                    plt.imshow(warp_res, cmap='viridis')
-                    plt.title('16x16 Covariance Matrix of 4x4 Noise Samples')
-                    plt.colorbar()
-                    plt.show()
-                    plt.savefig(f'/home/cvlab15/project/ines/3DConst/warp.png')
-              
-                    # import pdb; pdb.set_trace()
-                    
-                    plt.figure(figsize=(10, 8))
-                    plt.imshow(near_res, cmap='viridis')
-                    plt.title('16x16 Covariance Matrix of 4x4 Noise Samples')
-                    plt.colorbar()
-                    plt.show()
-                    plt.savefig(f'/home/cvlab15/project/ines/3DConst/near.png')
-
-                    
-                    plt.figure(figsize=(10, 8))
-                    plt.imshow(bil_res, cmap='viridis')
-                    plt.title('16x16 Covariance Matrix of 4x4 Noise Samples')
-                    plt.colorbar()
-                    plt.show()
-                    plt.savefig(f'/home/cvlab15/project/ines/3DConst/bil.png')
-                                        
-                    plt.figure(figsize=(10, 8))
-                    plt.imshow(our_res, cmap='viridis')
-                    plt.title('16x16 Covariance Matrix of 4x4 Noise Samples')
-                    plt.colorbar()
-                    plt.show()
-                    plt.savefig(f'/home/cvlab15/project/ines/3DConst/our.png')                    
-                    import pdb; pdb.set_trace()
-                    
-                    # covariance_matrix = np.cov(, rowvar=False)
-
-        
-                    # up_level = 3        
-                    # canon_noise = torch.randn((1, 4, 64, 64), device=self.device)
-                    # upscaled_noise = cond_noise_sampling(canon_noise, level=up_level)
-                                
-
                                     
             guidance_out = self.guidance(
                 guidance_inp, self.prompt_utils, **batch, noise_map=noise_map, rgb_as_latents=False, 
@@ -893,7 +710,7 @@ class GaussianSplatting(BaseLift3DSystem):
                 depth_maps = depth_maps
             )     
 
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
 
         visibility_filter = out["visibility_filter"]
         radii = out["radii"]

@@ -1,25 +1,20 @@
 prompts=(
-    # "a DSLR photo of a big elephant"
-    # "a DSLR photo of a cute meercat"
-    # "a DSLR photo of a blue bird with a beak and feathered wings"
-    # "a DSLR photo of a cute teddy-bear"
-    "a DSLR photo of a wild wolf"
+    "an old vintage car"
+    "a DLSR photo of an origami motorcycle"
+    "a zoomed out DSLR photo of a ceramic lion, white background"
 )
 
 img_dirs=(
-    # /home/cvlab15/project/soowon/naver/3DConst/threestudio/load/images/big-elephant.png
-    # /home/cvlab15/project/soowon/naver/3DConst/threestudio/load/images/meercat.png
-    # /home/cvlab15/project/soowon/naver/3DConst/threestudio/load/images/blue-bird.png
-    # /home/cvlab15/project/woojeong/naver/images/teddy-bear.png
-    /home/cvlab15/project/woojeong/naver/images/wolf.png
+    "/home/cvlab15/project/woojeong/wj_threestudio/images/car.png"
+    "/home/cvlab15/project/naver_diffusion/matthew/fresh_three/3DConst/threestudio/images/motor.png" 
+    "/home/cvlab15/project/woojeong/wj_threestudio/images/a_ceramic_lion.png"
 )
 
+
 cal_vals=(
-    # 135
-    # 135
-    # 135
-    # 90
-    135
+    180
+    0
+    90
 )
 
 for i in "${!prompts[@]}";
@@ -58,7 +53,7 @@ python launch.py \
     system.guidance.backprop_grad=false \
     system.guidance.debugging=false \
     system.noise_interval_schedule=true \
-    trainer.val_check_interval=500 \
+    trainer.val_check_interval=1 \
     data.n_val_views=20 \
 
 done

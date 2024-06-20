@@ -1,13 +1,13 @@
 prompts=(
-    "a zoomed out DSLR photo of a ceramic lion, white background"
+     "a cute meercat"
 )
 
 img_dirs=(
-    "/home/cvlab15/project/woojeong/wj_threestudio/images/a_ceramic_lion.png"
+     "/home/cvlab15/project/soowon/naver/3DConst/threestudio/load/images/meercat.png"
 )
 
 cal_vals=(
-    90
+     135
 )
 
 for i in "${!prompts[@]}";
@@ -15,8 +15,8 @@ do
 python launch.py \
     --config custom/threestudio-3dgs/configs/gau_stable_diffusion.yaml \
     --train \
-    --gpu 6 \
-    system.tag="zzzzzzzzzz_ablation" \
+    --gpu 7 \
+    system.tag="zzzzzzzzzz_ablation_noiseonly" \
     system.three_noise=false \
     system.pytorch_three=false \
     data.num_multiview=2 \
@@ -36,14 +36,14 @@ python launch.py \
     data.num_const_views=15 \
     system.reprojection_info=false \
     system.guidance.guidance_scale=100 \
-    system.guidance.add_loss="cosine_sim" \
+    system.guidance.add_loss="no_loss" \
     system.guidance.use_normalized_grad=false \
     system.guidance.add_loss_stepping=false \
     system.guidance.grad_cons_mask=false \
     system.guidance.mask_w_timestep=false \
     system.guidance.vis_grad=false \
     system.guidance.use_disp_loss=false \
-    system.guidance.use_sim_loss=true \
+    system.guidance.use_sim_loss=false \
     system.guidance.weight_sim_loss=5.0 \
     system.guidance.weight_disp_loss=1.0 \
     trainer.max_steps=3000 \
