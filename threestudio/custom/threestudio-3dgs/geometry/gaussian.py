@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import NamedTuple
 
-import mcubes
+# import mcubes
 import numpy as np
 import threestudio
 import torch
@@ -265,28 +265,28 @@ class GaussianModel(GaussianBaseModel):
 
         return occ
 
-    def extract_mesh(self, density_thresh=0.8, resolution=128, decimate_target=1e5):
-        occ = self.extract_fields(resolution).detach().cpu().numpy()
+    # def extract_mesh(self, density_thresh=0.8, resolution=128, decimate_target=1e5):
+    #     occ = self.extract_fields(resolution).detach().cpu().numpy()
 
-        vertices, triangles = mcubes.marching_cubes(occ, density_thresh)
-        vertices = vertices / (resolution - 1.0) * 2 - 1
+    #     vertices, triangles = mcubes.marching_cubes(occ, density_thresh)
+    #     vertices = vertices / (resolution - 1.0) * 2 - 1
 
-        # transform back to the original space
-        vertices = vertices / self.scale + self.center.detach().cpu().numpy()
+    #     # transform back to the original space
+    #     vertices = vertices / self.scale + self.center.detach().cpu().numpy()
 
-        vertices, triangles = clean_mesh(
-            vertices, triangles, remesh=True, remesh_size=0.015
-        )
-        if decimate_target > 0 and triangles.shape[0] > decimate_target:
-            vertices, triangles = decimate_mesh(vertices, triangles, decimate_target)
+    #     vertices, triangles = clean_mesh(
+    #         vertices, triangles, remesh=True, remesh_size=0.015
+    #     )
+    #     if decimate_target > 0 and triangles.shape[0] > decimate_target:
+    #         vertices, triangles = decimate_mesh(vertices, triangles, decimate_target)
 
-        v = torch.from_numpy(vertices.astype(np.float32)).contiguous().cuda()
-        f = torch.from_numpy(triangles.astype(np.int32)).contiguous().cuda()
+    #     v = torch.from_numpy(vertices.astype(np.float32)).contiguous().cuda()
+    #     f = torch.from_numpy(triangles.astype(np.int32)).contiguous().cuda()
 
-        threestudio.info(
-            f"marching cubes result: {v.shape} ({v.min().item()}-{v.max().item()}), {f.shape}"
-        )
+    #     threestudio.info(
+    #         f"marching cubes result: {v.shape} ({v.min().item()}-{v.max().item()}), {f.shape}"
+    #     )
 
-        mesh = Mesh(v_pos=v, t_pos_idx=f)
+    #     mesh = Mesh(v_pos=v, t_pos_idx=f)
 
-        return mesh
+    #     return mesh

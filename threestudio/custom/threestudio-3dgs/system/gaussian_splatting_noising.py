@@ -21,7 +21,7 @@ from threestudio.systems.up_warp import cond_noise_sampling, integrated_warping,
 
 
 from torchvision.utils import save_image
-import open3d as o3d
+# import open3d as o3d
 import matplotlib.pyplot as plt
 
 

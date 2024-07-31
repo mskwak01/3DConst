@@ -16,7 +16,7 @@ python launch.py \
     --config custom/threestudio-3dgs/configs/gau_stable_diffusion.yaml \
     --train \
     --gpu 5 \
-    system.tag="zzzzzzzzzz_naive" \
+    system.tag="naive" \
     system.three_noise=false \
     system.pytorch_three=false \
     data.num_multiview=2 \

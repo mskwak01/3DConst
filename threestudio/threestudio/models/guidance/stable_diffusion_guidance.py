@@ -76,6 +76,7 @@ class StableDiffusionGuidance(BaseObject):
         geo_intr_on: int = 5
         geo_intr_off: int = 10
         cfg_lastup: bool = False
+        cfg_change_iter: int = 2300
 
         """Maximum number of batch items to evaluate guidance for (for debugging) and to save on disk. -1 means save all items."""
         max_items_eval: int = 4
@@ -750,7 +751,7 @@ class StableDiffusionGuidance(BaseObject):
         latents: Float[Tensor, "B 4 64 64"]
         
         if self.cfg.cfg_lastup and noise_map is not None: 
-            if kwargs["iter"] > 2300:
+            if kwargs["iter"] > self.cfg.cfg_change_iter:
                 self.guidance_scale = 100
         
         if batch_size > 30:

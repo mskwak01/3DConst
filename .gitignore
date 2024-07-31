@@ -10,6 +10,11 @@ point_e_model_cache/
 point-e/
 garage/
 data/
+RASTER/
+
+threestudio/custom/threestudio-3dgs/diff-gaussian-rasterization/
+threestudio/custom/threestudio-3dgs/simple-knn
+
 
 threestudio/custom/threestudio-3dgs/gaussian-splatting/submodules/
 # # Distribution / packaging

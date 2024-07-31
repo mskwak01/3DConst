@@ -22,7 +22,7 @@ cal_vals=(
 for i in "${!prompts[@]}";
 do
 python launch.py \
-    --config configs/dreamfusion-sd-noise.yaml \
+    --config custom/threestudio-3dgs/configs/gau_stable_diffusion.yaml \
     --train \
     --gpu 1 \
     system.tag="dreamfusion_final_ours" \

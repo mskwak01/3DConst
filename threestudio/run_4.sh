@@ -3,7 +3,7 @@ prompts=(
 )
 
 img_dirs=(
-    "/home/cvlab15/project/woojeong/wj_threestudio/images/a_ceramic_lion.png"
+    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/tiger.jpeg"
 )
 
 cal_vals=(
@@ -15,7 +15,7 @@ do
 python launch.py \
     --config custom/threestudio-3dgs/configs/gau_stable_diffusion.yaml \
     --train \
-    --gpu 4 \
+    --gpu 1 \
     system.tag="zzzzzzzzzz_final_ours" \
     system.three_noise=true \
     system.pytorch_three=false \
@@ -52,6 +52,7 @@ python launch.py \
     system.noise_interval_schedule=true \
     trainer.val_check_interval=200 \
     system.guidance.cfg_lastup=true \
+    system.guidance.cfg_change_iter=2300 \
     data.n_val_views=20 \
 
 done

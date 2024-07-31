@@ -1,6 +1,6 @@
 name: "gau_stable_diffusion"
 tag: "${rmspace:${system.prompt_processor.prompt},_}_${system.tag}"
-exp_root_dir: "/mnt/data4/matthew/outputs"
+exp_root_dir: "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/output"
 seed: 0
 data_type: "random-multiview-datamodule"
 data:

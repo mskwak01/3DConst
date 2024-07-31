@@ -16,7 +16,7 @@ from threestudio.systems.point_noising import reprojector, pts_noise_upscaler, s
 from threestudio.systems.pytorch3d.renderer import PointsRasterizationSettings
 
 from torchvision.utils import save_image
-import open3d as o3d
+# import open3d as o3d
 
 @threestudio.register("prolificdreamer-noise-system")
 class ProlificDreamer(BaseLift3DSystem):
