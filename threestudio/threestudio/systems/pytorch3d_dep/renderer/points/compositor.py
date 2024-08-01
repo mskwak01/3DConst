@@ -7,7 +7,7 @@
 from typing import List, Optional, Tuple, Union
 
 import torch
-import raster
+# import raster
 import torch.nn as nn
 
 from ..compositing import alpha_composite

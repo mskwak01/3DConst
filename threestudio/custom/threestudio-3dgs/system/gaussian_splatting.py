@@ -14,7 +14,7 @@ from torch.cuda.amp import autocast
 from ..geometry.gaussian import BasicPointCloud, Camera
 
 from threestudio.systems.pc_project import point_e, render_depth_from_cloud
-from threestudio.systems.pytorch3d.renderer import PointsRasterizationSettings
+from pytorch3d.renderer import PointsRasterizationSettings
 
 from torchvision.utils import save_image
 import open3d as o3d

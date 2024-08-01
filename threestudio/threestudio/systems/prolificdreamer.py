@@ -10,7 +10,7 @@ from threestudio.utils.ops import binary_cross_entropy, dot
 from threestudio.utils.typing import *
 
 from threestudio.systems.pc_project import point_e, render_depth_from_cloud
-from threestudio.systems.pytorch3d.renderer import PointsRasterizationSettings
+from pytorch3d.renderer import PointsRasterizationSettings
 
 
 @threestudio.register("prolificdreamer-system")

@@ -3,7 +3,7 @@ prompts=(
 )
 
 img_dirs=(
-    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/tiger.jpeg"
+    "/home/cvlab06/project/donghoon/text-to-3d/3DConst/threestudio/images/tiger.jpeg"
 )
 
 cal_vals=(
@@ -16,7 +16,7 @@ python launch.py \
     --config custom/threestudio-3dgs/configs/gau_stable_diffusion.yaml \
     --train \
     --gpu 1 \
-    system.tag="zzzzzzzzzz_final_ours" \
+    system.tag="final_ours" \
     system.three_noise=true \
     system.pytorch_three=false \
     data.num_multiview=2 \

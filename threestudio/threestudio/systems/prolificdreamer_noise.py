@@ -11,9 +11,9 @@ from threestudio.utils.misc import cleanup, get_device
 from threestudio.utils.ops import binary_cross_entropy, dot
 from threestudio.utils.typing import *
 
-from threestudio.systems.pc_project import point_e, render_depth_from_cloud, render_noised_cloud, render_upscaled_noised_cloud
+from threestudio.systems.pc_project import point_e, render_depth_from_cloud
 from threestudio.systems.point_noising import reprojector, pts_noise_upscaler, sphere_pts_generator, ray_reprojector
-from threestudio.systems.pytorch3d.renderer import PointsRasterizationSettings
+from pytorch3d.renderer import PointsRasterizationSettings
 
 from torchvision.utils import save_image
 # import open3d as o3d

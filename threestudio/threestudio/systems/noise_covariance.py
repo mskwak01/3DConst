@@ -11,8 +11,8 @@ from threestudio.utils.ops import binary_cross_entropy, dot
 from threestudio.utils.typing import *
 from torchvision.utils import save_image
 
-from threestudio.systems.pc_project import point_e, render_depth_from_cloud, render_noised_cloud, render_upscaled_noised_cloud
-from threestudio.systems.pytorch3d.renderer import PointsRasterizationSettings
+from threestudio.systems.pc_project import point_e, render_depth_from_cloud
+from pytorch3d.renderer import PointsRasterizationSettings
 
 from threestudio.utils.saving import SaverMixin
 

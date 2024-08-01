@@ -14,14 +14,14 @@ from torch.cuda.amp import autocast
 
 from ..geometry.gaussian import BasicPointCloud, Camera
 
-from threestudio.systems.pc_project import point_e, render_depth_from_cloud, render_noised_cloud, render_upscaled_noised_cloud
+from threestudio.systems.pc_project import point_e, render_depth_from_cloud
 from threestudio.systems.point_noising import reprojector, pts_noise_upscaler, sphere_pts_generator, ray_reprojector
-from threestudio.systems.pytorch3d.renderer import PointsRasterizationSettings
+from pytorch3d.renderer import PointsRasterizationSettings
 from threestudio.systems.up_warp import cond_noise_sampling, integrated_warping, get_noise_vertices, plot_gaussians
 
 
 from torchvision.utils import save_image
-# import open3d as o3d
+import open3d as o3d
 import matplotlib.pyplot as plt
 
 
