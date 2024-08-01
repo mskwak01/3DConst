@@ -40,6 +40,33 @@ class PadToSquare:
         # Pad the image and return it
         padding = (left, top, right, bottom)
         return transforms.functional.pad(img, padding, fill=0, padding_mode='constant')
+from torchvision.utils import save_image
+from torchvision.transforms import ToPILImage
+from torchvision import transforms
+
+# Define the transform pipeline
+pad_transform = transforms.Compose([
+    # transforms.Resize((256, 256)),  # Resize to a fixed size (optional)
+    PadToSquare(),
+    # transforms.ToTensor(),
+])
+
+class PadToSquare:
+    def __call__(self, img):
+        # Get the original image size
+        width, height = img.size
+        # Determine the size of the new square image
+        max_side = max(width, height)
+        
+        # Calculate padding
+        left = (max_side - width) // 2
+        right = max_side - width - left
+        top = (max_side - height) // 2
+        bottom = max_side - height - top
+
+        # Pad the image and return it
+        padding = (left, top, right, bottom)
+        return transforms.functional.pad(img, padding, fill=0, padding_mode='constant')
 
 # Define the transform pipeline
 pad_transform = transforms.Compose([
@@ -260,8 +287,6 @@ def point_e(device,exp_dir):
         aux_channels=['R', 'G', 'B'],
         guidance_scale=[3.0, 3.0],
     )
-
-    # img = Image.open(os.path.join(exp_dir))
 
     img = Image.open(exp_dir)
     transformed_img = pad_transform(img)

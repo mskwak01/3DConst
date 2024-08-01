@@ -52,7 +52,7 @@ python launch.py \
     system.noise_interval_schedule=true \
     trainer.val_check_interval=200 \
     system.guidance.cfg_lastup=true \
-    system.guidance.cfg_change_iter=2300 \
+    system.guidance.cfg_change_iter=1500 \
     data.n_val_views=20 \
 
 done

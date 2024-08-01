@@ -1,6 +1,6 @@
 name: "prolificdreamer-noise"
 tag: "${rmspace:${system.prompt_processor.prompt},_}_${system.tag}"
-exp_root_dir:  "/mnt/data4/matthew/outputs"
+exp_root_dir:  "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/output"
 seed: 0
 
 data_type: "random-multiview-datamodule"
@@ -8,8 +8,8 @@ data:
   batch_size: [1, 1]
   # 0-4999: 64x64, >=5000: 512x512
   # this drastically reduces VRAM usage as empty space is pruned in early training
-  width: [64, 512]
-  height: [64, 512]
+  width: [64, 256]
+  height: [64, 256]
   resolution_milestones: [5000]
   camera_distance_range: [1.4, 1.4]
   fovy_range: [60, 70]
@@ -76,7 +76,7 @@ system:
 
   guidance_type: "threefuse-vsd-guidance"
   guidance:
-    pretrained_model_name_or_path: "/mnt/data3/ines/threestudio/controlnet"
+    pretrained_model_name_or_path: "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/controlnet"
     pretrained_model_name_or_path_lora: "stabilityai/stable-diffusion-2-1"
     guidance_scale: 7.5
     min_step_percent: 0.02
