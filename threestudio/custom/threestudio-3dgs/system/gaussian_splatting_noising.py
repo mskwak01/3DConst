@@ -14,14 +14,14 @@ from torch.cuda.amp import autocast
 
 from ..geometry.gaussian import BasicPointCloud, Camera
 
-from threestudio.systems.pc_project import point_e, render_depth_from_cloud, render_noised_cloud, render_upscaled_noised_cloud
+from threestudio.systems.pc_project import point_e, render_depth_from_cloud
 from threestudio.systems.point_noising import reprojector, pts_noise_upscaler, sphere_pts_generator, ray_reprojector
 from threestudio.systems.pytorch3d.renderer import PointsRasterizationSettings
 from threestudio.systems.up_warp import cond_noise_sampling, integrated_warping, get_noise_vertices, plot_gaussians
 
 
 from torchvision.utils import save_image
-# import open3d as o3d
+import open3d as o3d
 import matplotlib.pyplot as plt
 
 
@@ -61,6 +61,7 @@ class GaussianSplatting(BaseLift3DSystem):
         restart: bool = False
         visualize_noise: bool = False
         visualize_noise_res: int = 256
+        point_vis: bool = False
 
     cfg: Config
 
@@ -295,8 +296,6 @@ class GaussianSplatting(BaseLift3DSystem):
             "visibility_filter": visibility_filters,
             "radii": radiis,
             "pts_depth" : depth_map,
-            # "noise_image": noise_img,
-            # "back_noise_image": back_noise_img
         }
         
         if self.cfg.visualize_noise:
@@ -313,8 +312,6 @@ class GaussianSplatting(BaseLift3DSystem):
             outputs.update(
                 {
                     "comp_normal": torch.stack(normals, dim=0).permute(0, 2, 3, 1),
-                    # "comp_depth": torch.stack(depths, dim=0).permute(0, 2, 3, 1),
-                    # "comp_mask": torch.stack(masks, dim=0).permute(0, 2, 3, 1),
                 }
             )
         return outputs
@@ -840,52 +837,69 @@ class GaussianSplatting(BaseLift3DSystem):
 
     def test_step(self, batch, batch_idx):
         out = self(batch)
-        self.save_image_grid(
-            f"it{self.global_step}-test/{batch['index'][0]}.png",
-            [
-                {
-                    "type": "rgb",
-                    "img": out["comp_rgb"][0],
-                    "kwargs": {"data_format": "HWC"},
-                },
-            ]
-            + (
+
+        if self.cfg.point_vis:
+            self.save_image_grid(
+                f"it{self.global_step}-test/{batch['index'][0]}.png",
                 [
                     {
                         "type": "rgb",
-                        "img": out["comp_normal"][0],
-                        "kwargs": {"data_format": "HWC"},
-                    }
-                ]
-                if "comp_normal" in out
-                else []
+                        "img": out["pts_depth"][0],
+                        "kwargs": {"data_range": (0, 1)},
+                    },
+                ]          
+                ,
+                name="test_step",
+                step=self.global_step,
             )
-            + (
+
+        else:
+            self.save_image_grid(
+                f"it{self.global_step}-test/{batch['index'][0]}.png",
                 [
                     {
                         "type": "rgb",
-                        "img": out["noise_img"][0],
+                        "img": out["comp_rgb"][0],
                         "kwargs": {"data_format": "HWC"},
-                    }
+                    },
                 ]
-                if "noise_img" in out
-                else []
+                + (
+                    [
+                        {
+                            "type": "rgb",
+                            "img": out["comp_normal"][0],
+                            "kwargs": {"data_format": "HWC"},
+                        }
+                    ]
+                    if "comp_normal" in out
+                    else []
+                )
+                + (
+                    [
+                        {
+                            "type": "rgb",
+                            "img": out["noise_img"][0],
+                            "kwargs": {"data_format": "HWC"},
+                        }
+                    ]
+                    if "noise_img" in out
+                    else []
+                )
+                + (
+                    [
+                        {
+                            "type": "rgb",
+                            "img": out["full_noise"][0],
+                            "kwargs": {"data_format": "HWC"},
+                        }
+                    ]
+                    if "full_noise" in out
+                    else []
+                )                 
+                ,
+                name="test_step",
+                step=self.global_step,
             )
-             + (
-                [
-                    {
-                        "type": "rgb",
-                        "img": out["full_noise"][0],
-                        "kwargs": {"data_format": "HWC"},
-                    }
-                ]
-                if "full_noise" in out
-                else []
-            )                 
-            ,
-            name="test_step",
-            step=self.global_step,
-        )
         if batch["index"][0] == 0:
             save_path = self.get_save_path("point_cloud.ply")
             self.geometry.save_ply(save_path)

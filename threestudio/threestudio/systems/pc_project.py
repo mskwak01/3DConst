@@ -31,7 +31,32 @@ from typing import NamedTuple, Optional, Tuple, Union, List
 
 from torchvision.utils import save_image
 from torchvision.transforms import ToPILImage
+from torchvision import transforms
 
+
+class PadToSquare:
+    def __call__(self, img):
+        # Get the original image size
+        width, height = img.size
+        # Determine the size of the new square image
+        max_side = max(width, height)
+        
+        # Calculate padding
+        left = (max_side - width) // 2
+        right = max_side - width - left
+        top = (max_side - height) // 2
+        bottom = max_side - height - top
+
+        # Pad the image and return it
+        padding = (left, top, right, bottom)
+        return transforms.functional.pad(img, padding, fill=0, padding_mode='constant')
+
+# Define the transform pipeline
+pad_transform = transforms.Compose([
+    # transforms.Resize((256, 256)),  # Resize to a fixed size (optional)
+    PadToSquare(),
+    # transforms.ToTensor(),
+])
 
 def tqdm(*args, **kwargs):
     is_remote = bool(os.environ.get("IS_REMOTE", False))
@@ -666,12 +691,12 @@ def point_e(device, exp_dir=None):
         guidance_scale=[3.0, 3.0],
     )
 
-    # img = Image.open(os.path.join(exp_dir,'initial_image','instance0.png'))
     img = Image.open(exp_dir)
+    transformed_img = pad_transform(img)
 
     samples = None
     for x in tqdm(
-        sampler.sample_batch_progressive(batch_size=1, model_kwargs=dict(images=[img]))
+        sampler.sample_batch_progressive(batch_size=1, model_kwargs=dict(images=[transformed_img]))
     ):
         samples = x
 

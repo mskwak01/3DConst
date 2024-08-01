@@ -1,20 +1,14 @@
 prompts=(
     "an old vintage car"
-    "a DLSR photo of an origami motorcycle"
-    "a zoomed out DSLR photo of a ceramic lion, white background"
 )
 
 img_dirs=(
-    "/home/cvlab15/project/woojeong/wj_threestudio/images/car.png"
-    "/home/cvlab15/project/naver_diffusion/matthew/fresh_three/3DConst/threestudio/images/motor.png" 
-    "/home/cvlab15/project/woojeong/wj_threestudio/images/a_ceramic_lion.png"
+    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/tiger.jpeg"
 )
 
 
 cal_vals=(
     180
-    0
-    90
 )
 
 for i in "${!prompts[@]}";
@@ -22,7 +16,7 @@ do
 python launch.py \
     --config configs/prolificdreamer-noise.yaml \
     --train \
-    --gpu 7 \
+    --gpu 0 \
     system.tag="prolific_naive" \
     system.gradient_masking=true \
     data.num_multiview=1 \
@@ -53,8 +47,8 @@ python launch.py \
     system.guidance.backprop_grad=false \
     system.guidance.debugging=false \
     system.noise_interval_schedule=true \
-    trainer.val_check_interval=1 \
-    data.n_val_views=20 \
+    trainer.val_check_interval=250 \
+    data.n_val_views=10 \
 
 done
 

@@ -11,6 +11,8 @@ point-e/
 garage/
 data/
 RASTER/
+controlnet/
+output/
 
 threestudio/custom/threestudio-3dgs/diff-gaussian-rasterization/
 threestudio/custom/threestudio-3dgs/simple-knn

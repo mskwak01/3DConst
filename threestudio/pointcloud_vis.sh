@@ -1,39 +1,83 @@
+# prompts=(
+#     "a beautiful rainbow fish"
+#     # "a zoomed out DSLR photo of a ceramic lion, white background"
+# )
+
+# img_dirs=(
+#     "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images/owl.png"
+#     # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/tiger.jpeg"
+# )
+
+# cal_vals=(
+#     180
+#     # 90
+# )
+
+######################
+
 prompts=(
-    "an old vintage car"
-    "a DLSR photo of an origami motorcycle"
-    "a zoomed out DSLR photo of a ceramic lion, white background"
+    "a beautiful rainbow fish"
+    "a cat wearing a bee costume"
+    "a cat with wings"
+    "a chow chow puppy"
+    "a goose made out of gold"
+    "a pug made out of metal"
+    "a toy robot"
+    "a snail"
+    # "a turtle"
+    # "a fennec fox"
+    # "a train engine made out of clay"
 )
-
-img_dirs=(
-    "/home/cvlab15/project/woojeong/wj_threestudio/images/car.png"
-    "/home/cvlab15/project/naver_diffusion/matthew/fresh_three/3DConst/threestudio/images/motor.png" 
-    "/home/cvlab15/project/woojeong/wj_threestudio/images/a_ceramic_lion.png"
-)
-
 
 cal_vals=(
     180
+    90
+    90
+    90
     0
     90
+    270
+    90
+    # 90
+    # 90
+    # 90
 )
 
-cfgs=(
-    7.5
-    7.5
-    100
+img_dirs=(
+    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images/fish.png"
+    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images/cat-bee.png"
+    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images/cat-wing.png"
+    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images/chow.png"
+    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images/goose.png"
+    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images/pug.png"
+    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images/robot.png"
+    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images/snail.png"
+    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images//turtle.png"
+    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images/fox.png"
+    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images/train.png"
 )
 
+gpu_val=(
+    0
+    1
+    2
+    3
+    4
+    5
+    6
+    7
+)
 
 for i in "${!prompts[@]}";
 do
 python launch.py \
     --config custom/threestudio-3dgs/configs/gau_stable_diffusion.yaml \
     --train \
-    --gpu 0 \
-    system.tag="results_for_comparison_with_other_baselines_${cfgs[i]}" \
-    system.three_noise=true \
+    --gpu "${gpu_val[i]}" \
+    system.tag="pointcloud_vis" \
+    system.three_noise=false \
     system.pytorch_three=false \
-    data.num_multiview=2 \
+    data.num_multiview=1 \
     system.prompt_processor.prompt="${prompts[i]}" \
     system.image_dir="${img_dirs[i]}" \
     system.surf_radius=0.05 \
@@ -45,11 +89,11 @@ python launch.py \
     system.background_rand="ball" \
     system.noise_alter_interval=30 \
     system.consistency_mask=false \
-    data.multiview_deg=15 \
+    data.multiview_deg=5 \
     data.constant_viewpoints=true \
-    data.num_const_views=10 \
+    data.num_const_views=15 \
     system.reprojection_info=false \
-    system.guidance.guidance_scale="${cfgs[i]}" \
+    system.guidance.guidance_scale=7.5 \
     system.guidance.add_loss="cosine_sim" \
     system.guidance.use_normalized_grad=false \
     system.guidance.add_loss_stepping=false \
@@ -57,17 +101,20 @@ python launch.py \
     system.guidance.mask_w_timestep=false \
     system.guidance.vis_grad=false \
     system.guidance.use_disp_loss=false \
-    system.guidance.use_sim_loss=true \
+    system.guidance.use_sim_loss=false \
     system.guidance.weight_sim_loss=5.0 \
     system.guidance.weight_disp_loss=1.0 \
-    trainer.max_steps=3000 \
+    trainer.max_steps=2 \
     system.guidance.backprop_grad=false \
     system.guidance.debugging=false \
     system.noise_interval_schedule=true \
-    trainer.val_check_interval=100 \
+    trainer.val_check_interval=200 \
+    system.guidance.cfg_lastup=true \
+    system.guidance.cfg_change_iter=1500 \
+    system.point_vis=true \
     data.n_val_views=20 \
-
-
+    &
+    
 done
 
 # prompts=(
