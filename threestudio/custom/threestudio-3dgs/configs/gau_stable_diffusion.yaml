@@ -7,9 +7,9 @@ data:
   batch_size: 2
   width: 512
   height: 512
-  camera_distance_range: [1.4, 1.4]
+  camera_distance_range: [1.4, 1.8]
   fovy_range: [60, 70]
-  elevation_range: [0, 90]
+  elevation_range: [0, 70]
   light_sample_strategy: "dreamfusion"
   eval_camera_distance: 1.4
   eval_fovy_deg: 70
@@ -17,13 +17,16 @@ data:
   num_multiview: 2
   multiview_deg: 30.0
   front_optimize: true
+  rand_multi_deg: false
 
 system_type: "gaussian-splatting-noising-system"
 system:
   filename: ${tag}
+  prompt: ${rmspace:${system.prompt_processor.prompt},_}
   image_dir: "/home/dreamer/host_files/matthew/matt_threestudio/threestudio/tower.png"
   threefuse: false
   batch_size: ${data.batch_size}
+  rand_multi_deg: ${data.rand_multi_deg}
   three_noise: true
   identical_noising: true
   gaussian_dynamic: true
@@ -48,11 +51,11 @@ system:
     opacity_reset_interval: 50000000
     densify_from_iter: 0
     densify_until_iter: 10000
-    prune_from_iter: 1000
+    prune_from_iter: 500
     prune_until_iter: ${trainer.max_steps}
     densify_grad_threshold: 0.01
     min_opac_prune: 0.005
-    split_thresh: 0.007
+    split_thresh: 0.07
     radii2d_thresh: 1000
 
     init_num_pts: 4096
@@ -134,6 +137,7 @@ system:
     lambda_scales: 0.0001
     lambda_tv_loss: 1.0
     lambda_depth_tv_loss: 1.0
+    lambda_sim: 5.0
 
 trainer:
   max_steps: 5000

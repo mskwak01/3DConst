@@ -53,6 +53,7 @@ class ProlificDreamer(BaseLift3DSystem):
         noise_interval_schedule: bool = True
         visualize_noise: bool = False
         visualize_noise_res: int = 64
+        pts_var: float = 0.05
 
 
     cfg: Config
@@ -143,7 +144,7 @@ class ProlificDreamer(BaseLift3DSystem):
                     loc_rand = torch.randn(num_points, 3, self.cfg.n_pts_upscaling)
                     feat_rand = torch.randn(num_points, noise_channel, self.cfg.n_pts_upscaling)
                     
-                    self.noise_pts, self.noise_vals = pts_noise_upscaler(points, noise_tensor, noise_channel, self.cfg.n_pts_upscaling, loc_rand, feat_rand, self.device, pts_var=0.03)
+                    self.noise_pts, self.noise_vals = pts_noise_upscaler(points, noise_tensor, noise_channel, self.cfg.n_pts_upscaling, loc_rand, feat_rand, self.device, pts_var=self.cfg.pts_var)
                     
                     if self.cfg.background_rand == "ball":
                         self.background_noise_pts, self.background_noise_vals = sphere_pts_generator(self.device, noise_channel)
@@ -232,9 +233,7 @@ class ProlificDreamer(BaseLift3DSystem):
                     radius = pts_radius,
                     points_per_pixel = pts_per_pix
                 )
-            
-            up_noise_raster_settings = noise_raster_settings
-                            
+                                        
             surface_raster_settings = PointsRasterizationSettings(
                 image_size= 64,
                 radius = surf_radius,

@@ -1,45 +1,57 @@
 prompts=(
-    "a DSLR photo of a big elephant"
-    "a DSLR photo of a cute meercat"
-    "a DSLR photo of a cute teddy-bear"
-    "a DSLR photo of a wild wolf"
+    "a cat wearing a bee costume"
+    # "a DSLR photo of a big elephant"
+    # "a DSLR photo of a big elephant"
+    # "a DSLR photo of a big elephant"
 )
 
 img_dirs=(
-    /home/cvlab15/project/soowon/naver/3DConst/threestudio/load/images/big-elephant.png
-    /home/cvlab15/project/soowon/naver/3DConst/threestudio/load/images/meercat.png
-    /home/cvlab15/project/woojeong/naver/images/teddy-bear.png
-    /home/cvlab15/project/woojeong/naver/images/wolf.png
+    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images/cat-bee.png"
+    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images/elephant2.png"
+    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images/elephant2.png"
+    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images/elephant2.png"
 )
 
 cal_vals=(
-    135
-    135
     90
-    135
+    # 90
+    # 90
+    # 90
+)
+
+gpu_val=(
+    7
+    # 1
+    # 2
+    # 3
 )
 
 for i in "${!prompts[@]}";
 do
 python launch.py \
-    --config configs/dreamfusion-sd-noise.yaml \
+    --config custom/threestudio-3dgs/configs/gau_stable_diffusion.yaml \
     --train \
-    --gpu 3 \
-    system.tag="dreamfusion_naive" \
+    --gpu "${gpu_val[i]}" \
+    system.tag="trial" \
+    system.three_noise=true \
+    system.pytorch_three=false \
     data.num_multiview=2 \
-    system.three_noise=false \
     system.prompt_processor.prompt="${prompts[i]}" \
     system.image_dir="${img_dirs[i]}" \
     system.surf_radius=0.05 \
     system.calibration_value="${cal_vals[i]}" \
+    system.geometry.densification_interval=300\
+    system.geometry.prune_interval=300 \
+    system.gau_d_cond=false \
     system.n_pts_upscaling=9 \
     system.background_rand="ball" \
     system.noise_alter_interval=30 \
     system.consistency_mask=false \
     data.multiview_deg=5 \
-    data.constant_viewpoints=false \
+    data.constant_viewpoints=true \
     data.num_const_views=15 \
     system.reprojection_info=false \
+    system.guidance.guidance_scale=7.5 \
     system.guidance.add_loss="cosine_sim" \
     system.guidance.use_normalized_grad=false \
     system.guidance.add_loss_stepping=false \
@@ -47,16 +59,22 @@ python launch.py \
     system.guidance.mask_w_timestep=false \
     system.guidance.vis_grad=false \
     system.guidance.use_disp_loss=false \
-    system.guidance.use_sim_loss=false \
+    system.guidance.use_sim_loss=true \
     system.guidance.weight_sim_loss=5.0 \
     system.guidance.weight_disp_loss=1.0 \
+    trainer.max_steps=3000 \
     system.guidance.backprop_grad=false \
     system.guidance.debugging=false \
     system.noise_interval_schedule=true \
-    data.n_val_views=10 \
-    trainer.val_check_interval=500 \
-
+    trainer.val_check_interval=200 \
+    system.guidance.cfg_lastup=true \
+    system.guidance.cfg_change_iter=2500 \
+    data.n_val_views=20 \
+    system.pts_var=0.02 \
+    # &
+    
 done
+
 
 # prompts=(
 #     # "a zoomed out DSLR photo of a ceramic lion, white background"

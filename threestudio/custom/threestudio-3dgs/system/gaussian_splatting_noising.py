@@ -23,6 +23,7 @@ from threestudio.systems.up_warp import cond_noise_sampling, integrated_warping,
 from torchvision.utils import save_image
 import open3d as o3d
 import matplotlib.pyplot as plt
+import os
 
 
 @threestudio.register("gaussian-splatting-noising-system")
@@ -62,6 +63,9 @@ class GaussianSplatting(BaseLift3DSystem):
         visualize_noise: bool = False
         visualize_noise_res: int = 256
         point_vis: bool = False
+        pts_var: float = 0.05
+        prompt: str = ""
+        rand_multi_deg: bool = False
 
     cfg: Config
 
@@ -89,13 +93,25 @@ class GaussianSplatting(BaseLift3DSystem):
 
         if self.cfg.restart == False:
             
-            self.cond_pc = point_e(device="cuda", exp_dir=self.image_dir)
-            self.calibration_value = self.cfg.calibration_value    
-                        
-            pcd = self.pcb()
-        
-            self.geometry.create_from_pcd(pcd, 10)
-            self.geometry.training_setup()
+            init_pc_folder = "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/output/init_pc"
+
+            if os.path.isfile(os.path.join(init_pc_folder, self.cfg.prompt + ".ply")):
+                self.geometry.load_ply(os.path.join(init_pc_folder, self.cfg.prompt + ".ply"))
+                self.geometry.training_setup()
+            
+            else:
+                self.cond_pc = point_e(device="cuda", exp_dir=self.image_dir)
+                self.calibration_value = self.cfg.calibration_value    
+                            
+                pcd = self.pcb()
+            
+                self.geometry.create_from_pcd(pcd, 10)
+                self.geometry.training_setup()
+
+                if self.cfg.point_vis:
+                    self.geometry.save_ply(os.path.join(init_pc_folder, "trial" + self.cfg.prompt + ".ply"))
+                else:
+                    self.geometry.save_ply(os.path.join(init_pc_folder, self.cfg.prompt + ".ply"))
         
         self.noise_pts = None
         self.noise_vals = None
@@ -206,51 +222,51 @@ class GaussianSplatting(BaseLift3DSystem):
         
         # import pdb; pdb.set_trace()
                     
-        # if self.threefuse:
-        device = self.device
+        if self.cfg.point_vis:
+            device = self.device
+            
+            raster_settings = PointsRasterizationSettings(
+                    image_size= 800,
+                    radius = 0.01,
+                    points_per_pixel = 2
+                )
+            
+            cam_radius = batch["camera_distances"]
+                    
+            depth_maps = render_depth_from_cloud(points, batch, raster_settings, cam_radius, device, dynamic_points=self.gaussian_dynamic, cali=90)
+                    
+            ### Disparity Calculation
+            
+            if self.cfg.gau_d_cond:
+                gau_depths = torch.stack(depths)
+                mask = 1 - (gau_depths < 0.8).float() 
+                masked_depth = mask * gau_depths
+
+                focal_length = 1.4520
+                disparity = focal_length / (-(masked_depth == 0).float() + masked_depth + 1e-9)
+                # disparity = disparity * (disparity < 4).float()
+                # max_disp = torch.amax(disparity, dim=(2,3))[...,None,None]
         
-        raster_settings = PointsRasterizationSettings(
-                image_size= 800,
-                radius = 0.01,
-                points_per_pixel = 2
-            )
-        
-        cam_radius = batch["camera_distances"]
-                   
-        depth_maps = render_depth_from_cloud(points, batch, raster_settings, cam_radius, device, dynamic_points=self.gaussian_dynamic, cali=90)
+                min_disp_list = []
+                max_disp_list = []
                 
-        ### Disparity Calculation
+                #####
+                
+                for disp in disparity:
+                    max = torch.max(disp)
+                    min = torch.min(disp[disp > 0])
+                    min_disp_list.append(min)
+                    max_disp_list.append(max)
+
+                min_disp = torch.stack(min_disp_list)[...,None,None,None]
+                max_disp = torch.stack(max_disp_list)[...,None,None,None]
+                
+                norm_disparity = (disparity - min_disp) / (max_disp - min_disp)
         
-        if self.cfg.gau_d_cond:
-            gau_depths = torch.stack(depths)
-            mask = 1 - (gau_depths < 0.8).float() 
-            masked_depth = mask * gau_depths
-
-            focal_length = 1.4520
-            disparity = focal_length / (-(masked_depth == 0).float() + masked_depth + 1e-9)
-            # disparity = disparity * (disparity < 4).float()
-            # max_disp = torch.amax(disparity, dim=(2,3))[...,None,None]
-    
-            min_disp_list = []
-            max_disp_list = []
-            
-            #####
-            
-            for disp in disparity:
-                max = torch.max(disp)
-                min = torch.min(disp[disp > 0])
-                min_disp_list.append(min)
-                max_disp_list.append(max)
-
-            min_disp = torch.stack(min_disp_list)[...,None,None,None]
-            max_disp = torch.stack(max_disp_list)[...,None,None,None]
-            
-            norm_disparity = (disparity - min_disp) / (max_disp - min_disp)
-    
-            depth_map = norm_disparity.repeat(1,3,1,1).permute(0,2,3,1).detach()
-            
-        else:
-            depth_map = depth_maps.permute(0,2,3,1).detach()
+                depth_map = norm_disparity.repeat(1,3,1,1).permute(0,2,3,1).detach()
+                
+            else:
+                depth_map = depth_maps.permute(0,2,3,1).detach()
             
         ########
         
@@ -273,7 +289,7 @@ class GaussianSplatting(BaseLift3DSystem):
                     loc_rand = torch.randn(num_points, 3, self.cfg.n_pts_upscaling)
                     feat_rand = torch.randn(num_points, noise_channel, self.cfg.n_pts_upscaling)
                     
-                    self.noise_pts, self.noise_vals = pts_noise_upscaler(points, noise_tensor, noise_channel, self.cfg.n_pts_upscaling, loc_rand, feat_rand, self.device)
+                    self.noise_pts, self.noise_vals = pts_noise_upscaler(points, noise_tensor, noise_channel, self.cfg.n_pts_upscaling, loc_rand, feat_rand, self.device, pts_var=self.cfg.pts_var)
                     
                     if self.cfg.background_rand == "ball":
                         self.background_noise_pts, self.background_noise_vals = sphere_pts_generator(self.device, noise_channel)
@@ -295,8 +311,14 @@ class GaussianSplatting(BaseLift3DSystem):
             "viewspace_points": viewspace_points,
             "visibility_filter": visibility_filters,
             "radii": radiis,
-            "pts_depth" : depth_map,
         }
+
+        if self.cfg.point_vis:
+            outputs.update(
+                {
+                    "pts_depth" : depth_map
+                }
+            )
         
         if self.cfg.visualize_noise:
             outputs.update(
@@ -344,7 +366,7 @@ class GaussianSplatting(BaseLift3DSystem):
             else:
                 pass          
             
-        print(self.noise_alter_interval)
+        # print(self.noise_alter_interval)
         
         if self.cfg.vis_every_grad:
             
@@ -547,7 +569,11 @@ class GaussianSplatting(BaseLift3DSystem):
                 )
                 
                 cam_radius = batch["camera_distances"]
-                depth_maps = out["pts_depth"].permute(0,3,1,2)                
+
+                if self.cfg.point_vis:
+                    depth_maps = out["pts_depth"].permute(0,3,1,2)       
+                else:
+                    depth_maps = None         
                 
                 ############
                 if self.three_noise:
@@ -607,7 +633,7 @@ class GaussianSplatting(BaseLift3DSystem):
             
                         surf_map = render_depth_from_cloud(points, batch, surface_raster_settings, cam_radius, device, dynamic_points=self.gaussian_dynamic, cali=90, raw=True)           
 
-                        if self.cfg.constant_viewpoints:
+                        if self.cfg.constant_viewpoints and not self.cfg.rand_multi_deg:
                             key_list = [f"{k[0]}_{k[1]}" for k in batch['idx_keys']]
                             fore_noise_list = [None for i in range(len(key_list))]
                             back_noise_list = [None for i in range(len(key_list))]
@@ -649,6 +675,7 @@ class GaussianSplatting(BaseLift3DSystem):
                                 back_noise_maps = torch.stack(back_noise_list)
                                 
                         else:
+                            # import pdb; pdb.set_trace()
                             fore_noise_maps = reprojector(self.noise_pts, self.noise_vals, batch['c2w'], torch.linalg.inv(batch['c2w']), batch["fovy"], self.device, ref_depth=surf_map, noise_channel=noise_channel).nan_to_num()
                                                 
                         # import pdb; pdb.set_trace()
@@ -732,6 +759,8 @@ class GaussianSplatting(BaseLift3DSystem):
                 loss_sds += value * self.C(
                     self.cfg.loss[name.replace("loss_", "lambda_")]
                 )
+        
+        import pdb; pdb.set_trace()
 
         xyz_mean = None
         

@@ -694,6 +694,11 @@ def point_e(device, exp_dir=None):
     img = Image.open(exp_dir)
     transformed_img = pad_transform(img)
 
+    # transformed_img = img
+
+
+    # import pdb; pdb.set_trace()
+
     samples = None
     for x in tqdm(
         sampler.sample_batch_progressive(batch_size=1, model_kwargs=dict(images=[transformed_img]))

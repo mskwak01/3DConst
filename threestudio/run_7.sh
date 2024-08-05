@@ -1,14 +1,22 @@
 prompts=(
-    "an old vintage car"
+    "a cat wearing a bee costume"
+    # "a cat wearing a bee costume"
+    # "a cat wearing a bee costume"
+    # "a cat wearing a bee costume"
 )
 
 img_dirs=(
-    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/tiger.jpeg"
+    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images/cat-bee.png"
+    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images/cat-bee.png"
+    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images/cat-bee.png"
+    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images/cat-bee.png"
 )
 
-
 cal_vals=(
-    180
+    90
+    # 90
+    # 90
+    # 90
 )
 
 for i in "${!prompts[@]}";
@@ -16,12 +24,12 @@ do
 python launch.py \
     --config configs/prolificdreamer-noise.yaml \
     --train \
-    --gpu 0 \
-    system.tag="prolific_naive" \
+    --gpu 7 \
+    system.tag="prolific_noised" \
     system.gradient_masking=true \
     data.num_multiview=1 \
     system.three_noise=false \
-    system.identical_noising=true \
+    system.identical_noising=false \
     system.prompt_processor.prompt="${prompts[i]}" \
     system.image_dir="${img_dirs[i]}" \
     system.surf_radius=0.05 \

@@ -58,7 +58,7 @@ class RandomCameraDataModuleConfig:
     
     num_multiview: int = 0
     multiview_deg: float = 30.0
-    
+    rand_multi_deg: bool = False
     only_front: bool = False
     
     front_optimize: bool = False  # progressive ranges for elevation, azimuth, r, fovy
@@ -285,6 +285,13 @@ class RandomCameraIterableDataset(IterableDataset, Updateable):
             torch.rand(self.batch_size) * (self.fovy_range[1] - self.fovy_range[0])
             + self.fovy_range[0]
         )
+
+        # sample distances from a uniform distribution bounded by distance_range
+        camera_distances: Float[Tensor, "B"] = (
+            torch.rand(self.batch_size)
+            * (self.camera_distance_range[1] - self.camera_distance_range[0])
+            + self.camera_distance_range[0]
+        )
         
         # Multiview on nearby viewpoints
         
@@ -293,7 +300,14 @@ class RandomCameraIterableDataset(IterableDataset, Updateable):
             elevation_disp_config = "same"
             
             nearby_list = [1, -1, 2, -2, 3, -3, 4, -4, 5, -5]
-            disp_degs = self.multiview_deg * torch.tensor(nearby_list[:self.num_multiview])
+
+            # import pdb; pdb.set_trace()
+
+            if self.cfg.rand_multi_deg:
+                multi_deg = torch.rand(1) * self.multiview_deg
+                disp_degs = multi_deg * torch.tensor(nearby_list[:self.num_multiview])
+            else:
+                disp_degs = self.multiview_deg * torch.tensor(nearby_list[:self.num_multiview])
                     
             # Elevation degrees / radians
             # Experiment w/ different configs
@@ -313,20 +327,17 @@ class RandomCameraIterableDataset(IterableDataset, Updateable):
         
             background_var = torch.randint(2, size=(self.batch_size,)).repeat_interleave(self.num_multiview + 1)[...,None]
             fovy_deg = fovy_deg.repeat_interleave(self.num_multiview + 1)
+
+            camera_distances = camera_distances.repeat_interleave(self.num_multiview + 1)
+
+            # import pdb; pdb.set_trace()
             
             new_batch_size = self.batch_size * (1 + self.num_multiview)
             self.batch_size = new_batch_size
             
             # Randint
             
-                    
-        # sample distances from a uniform distribution bounded by distance_range
-        camera_distances: Float[Tensor, "B"] = (
-            torch.rand(self.batch_size)
-            * (self.camera_distance_range[1] - self.camera_distance_range[0])
-            + self.camera_distance_range[0]
-        )
-
+                
         # convert spherical coordinates to cartesian coordinates
         # right hand coordinate system, x back, y right, z up
         # elevation in (-90, 90), azimuth from +x to +y in (-180, 180)

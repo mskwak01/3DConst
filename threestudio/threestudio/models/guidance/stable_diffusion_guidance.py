@@ -529,16 +529,18 @@ class StableDiffusionGuidance(BaseObject):
         mse_maps = []
         depth_maps = []
         
-        depths = F.interpolate(depths, size=(64,64))[:,0]
-        tg = torch.ones_like(grad[0].reshape(4,-1)[0])
-        
         add_loss = 0.
         
         dis_grad_1 = None
         dis_grad_2 = None
-        
+
+        tg = torch.ones_like(grad[0].reshape(4,-1)[0])
+        depths = None
+
         if self.cfg.debugging:
             # import pdb; pdb.set_trace()
+
+            depths = F.interpolate(depths, size=(64,64))[:,0]
             
             mean_grad_1 = (depth_masks[0] * grad[0] + warped_gradients[0]) / 2
             mean_grad_2 = (depth_masks[2] * grad[3] + warped_gradients[2]) / 2
@@ -575,7 +577,10 @@ class StableDiffusionGuidance(BaseObject):
             
             mse = ((grad[src] * depth_masks[i] - warped_gradients[i]) ** 2).mean(dim=0)
             mse_maps.append(mse)
-            depth_maps.append(depths[src])
+
+            if depths is not None:
+                depth_maps.append(depths[src])
+
         
         mses = torch.stack(mse_maps)
         mse_mask = (mses >= self.cfg.grad_thresh).float()
@@ -750,7 +755,7 @@ class StableDiffusionGuidance(BaseObject):
         rgb_BCHW = rgb.permute(0, 3, 1, 2)
         latents: Float[Tensor, "B 4 64 64"]
         
-        if self.cfg.cfg_lastup and noise_map is not None: 
+        if self.cfg.cfg_lastup: 
             if kwargs["iter"] > self.cfg.cfg_change_iter:
                 self.guidance_scale = 100
         
@@ -942,6 +947,7 @@ class StableDiffusionGuidance(BaseObject):
                 warp_grad = guidance_eval_utils["weight"][src_ind] * (pred_noise_pretrain - pred_noise_warped)
                 
                 warp_grad = torch.nan_to_num(warp_grad)
+                
                 # clip grad for stable training?
                 if self.grad_clip_val is not None:
                     warp_grad = warp_grad.clamp(-self.grad_clip_val, self.grad_clip_val)
@@ -1134,21 +1140,22 @@ class StableDiffusionGuidance(BaseObject):
         else:
             total_loss = loss_sds
         
-        if self.cfg.use_sim_loss:
-            if self.cfg.add_loss_stepping:
-                if loss_sds < 100.:
-                    total_loss += self.cfg.weight_sim_loss * similarity_loss
-                else:
-                    total_loss += self.cfg.weight_sim_loss * 10 * similarity_loss
+        # if self.cfg.use_sim_loss:
+        #     if self.cfg.add_loss_stepping:
+        #         if loss_sds < 100.:
+        #             total_loss += self.cfg.weight_sim_loss * similarity_loss
+        #         else:
+        #             total_loss += self.cfg.weight_sim_loss * 10 * similarity_loss
                     
-            else:
-                total_loss += self.cfg.weight_sim_loss * similarity_loss
+        #     else:
+        #         total_loss += self.cfg.weight_sim_loss * similarity_loss
             
-        if self.cfg.use_disp_loss:
-            total_loss += disp_loss
+        # if self.cfg.use_disp_loss:
+        #     total_loss += disp_loss
             
         guidance_out = {
-            "loss_sds": total_loss,
+            "loss_sds": loss_sds,
+            "loss_sim": similarity_loss,
             "grad_norm": grad.norm(),
             "min_step": self.min_step,
             "max_step": self.max_step,

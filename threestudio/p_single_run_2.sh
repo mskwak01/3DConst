@@ -1,15 +1,15 @@
 prompts=(
     "a cat wearing a bee costume"
-    # "a DSLR photo of a big elephant"
-    # "a DSLR photo of a big elephant"
-    # "a DSLR photo of a big elephant"
+    # "a cat wearing a bee costume"
+    # "a cat wearing a bee costume"
+    # "a cat wearing a bee costume"
 )
 
 img_dirs=(
     "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images/cat-bee.png"
-    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images/elephant2.png"
-    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images/elephant2.png"
-    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images/elephant2.png"
+    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images/cat-bee.png"
+    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images/cat-bee.png"
+    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images/cat-bee.png"
 )
 
 cal_vals=(
@@ -20,11 +20,18 @@ cal_vals=(
 )
 
 gpu_val=(
-    7
+    4
     # 1
     # 2
     # 3
 )
+
+# pts_var=(
+#     0.01
+#     0.02
+#     0.04
+#     0.08
+# )
 
 for i in "${!prompts[@]}";
 do
@@ -32,7 +39,7 @@ python launch.py \
     --config custom/threestudio-3dgs/configs/gau_stable_diffusion.yaml \
     --train \
     --gpu "${gpu_val[i]}" \
-    system.tag="trial_no_init" \
+    system.tag="ours_ptsvar_002_run_1_6" \
     system.three_noise=true \
     system.pytorch_three=false \
     data.num_multiview=2 \
@@ -40,7 +47,7 @@ python launch.py \
     system.image_dir="${img_dirs[i]}" \
     system.surf_radius=0.05 \
     system.calibration_value="${cal_vals[i]}" \
-    system.geometry.densification_interval=300\
+    system.geometry.densification_interval=300 \
     system.geometry.prune_interval=300 \
     system.gau_d_cond=false \
     system.n_pts_upscaling=9 \
@@ -48,7 +55,7 @@ python launch.py \
     system.noise_alter_interval=30 \
     system.consistency_mask=false \
     data.multiview_deg=5 \
-    data.constant_viewpoints=true \
+    data.constant_viewpoints=false \
     data.num_const_views=15 \
     system.reprojection_info=false \
     system.guidance.guidance_scale=7.5 \
@@ -62,13 +69,13 @@ python launch.py \
     system.guidance.use_sim_loss=true \
     system.guidance.weight_sim_loss=5.0 \
     system.guidance.weight_disp_loss=1.0 \
-    trainer.max_steps=2000 \
+    trainer.max_steps=3000 \
     system.guidance.backprop_grad=false \
     system.guidance.debugging=false \
     system.noise_interval_schedule=true \
-    trainer.val_check_interval=100 \
+    trainer.val_check_interval=200 \
     system.guidance.cfg_lastup=true \
-    system.guidance.cfg_change_iter=1500 \
+    system.guidance.cfg_change_iter=1800 \
     data.n_val_views=20 \
     system.pts_var=0.02 \
     # &
@@ -76,30 +83,24 @@ python launch.py \
 done
 
 # prompts=(
-#     # "a zoomed out DSLR photo of a ceramic lion, white background"
-#     "a peacock with a crown"
-#     # "a DSLR photo of a silver metallic robot tiger"
-#     "a mysterious LEGO wizard"
-#     # "a product photo of cat-shaped toy"
-#     # "a DSLR photo of an ironman figure"
+#     "a DSLR photo of a big elephant"
+#     "a DSLR photo of a cute meercat"
+#     # "a DSLR photo of a cute teddy-bear"
+#     # "a DSLR photo of a wild wolf"
 # )
 
 # img_dirs=(
-#     # "/home/cvlab15/project/woojeong/wj_threestudio/images/a_ceramic_lion.png"
-#     "/home/cvlab15/project/woojeong/naver/images/peacock.png"
-#     # "/home/cvlab15/project/naver_diffusion/matthew/fresh_three/3DConst/threestudio/images/tiger.jpeg"
-#     "/home/cvlab15/project/woojeong/naver/images/lego-wizard2.png"
-#     # "/home/cvlab15/project/woojeong/naver/images/cat-toy.png"
-#     # "/home/cvlab15/project/naver_diffusion/matthew/matt_threestudio/threestudio/threestudio/images/ironman.png"
+#     /home/cvlab15/project/soowon/naver/3DConst/threestudio/load/images/big-elephant.png
+#     /home/cvlab15/project/soowon/naver/3DConst/threestudio/load/images/meercat.png
+#     # /home/cvlab15/project/woojeong/naver/images/teddy-bear.png
+#     # /home/cvlab15/project/woojeong/naver/images/wolf.png
 # )
 
 # cal_vals=(
-#     # 0
-#     0
-#     # 0
-#     0
-#     # 345
-#     # 0    
+#     135
+#     135
+#     # 90
+#     # 135
 # )
 
 # for i in "${!prompts[@]}";
@@ -107,9 +108,8 @@ done
 # python launch.py \
 #     --config configs/dreamfusion-sd-noise.yaml \
 #     --train \
-#     --gpu 1 \
-#     system.tag="dreamfusion_final_ours_fixed" \
-#     system.gradient_masking=true \
+#     --gpu 0 \
+#     system.tag="dreamfusion_final_ours" \
 #     data.num_multiview=2 \
 #     system.three_noise=true \
 #     system.identical_noising=true \
@@ -122,10 +122,9 @@ done
 #     system.noise_alter_interval=30 \
 #     system.consistency_mask=false \
 #     data.multiview_deg=5 \
-#     data.constant_viewpoints=true \
+#     data.constant_viewpoints=false \
 #     data.num_const_views=15 \
 #     system.reprojection_info=false \
-#     system.guidance.guidance_scale=7.5 \
 #     system.guidance.add_loss="cosine_sim" \
 #     system.guidance.use_normalized_grad=false \
 #     system.guidance.add_loss_stepping=false \
@@ -136,56 +135,37 @@ done
 #     system.guidance.use_sim_loss=true \
 #     system.guidance.weight_sim_loss=5.0 \
 #     system.guidance.weight_disp_loss=1.0 \
-#     trainer.max_steps=4000 \
 #     system.guidance.backprop_grad=false \
 #     system.guidance.debugging=false \
 #     system.noise_interval_schedule=true \
-#     trainer.val_check_interval=100 \
-#     system.guidance.cfg_lastup=true \
-#     data.n_val_views=20 \
+#     data.n_val_views=10 \
+#     trainer.val_check_interval=500 \
 
 # done
 
 # prompts=(
-#     # "a beautiful rainbow fish"
-#     # "a cat wearing a bee costume"
-#     # "a cat with wings"
-#     "a chow chow puppy"
-#     "a goose made out of gold"
-#     "a pug made out of metal"
-#     "a toy robot"
-#     # "a snail"
-#     # "a turtle"
-#     # "a fennec fox"
-#     # "a train engine made out of clay"
-# )
-
-# cal_vals=(
-#     # 180
-#     # 90
-#     # 90
-#     90
-#     0
-#     90
-#     270
-#     # 90
-#     # 90
-#     # 90
-#     # 90
+#     "an old vintage car"
+#     "a DLSR photo of an origami motorcycle"
+#     "a zoomed out DSLR photo of a ceramic lion, white background"
 # )
 
 # img_dirs=(
-#     # "/mnt/data3/3DConst/images/fish.png"
-#     # "/mnt/data3/3DConst/images/cat-bee.png"
-#     # "/mnt/data3/3DConst/images/cat-wing.png"
-#     "/mnt/data3/3DConst/images/chow.png"
-#     "/mnt/data3/3DConst/images/goose.png"
-#     "/mnt/data3/3DConst/images/pug.png"
-#     "/mnt/data3/3DConst/images/robot.png"
-#     # "/mnt/data3/3DConst/images/snail.png"
-#     # "/mnt/data3/3DConst/images/turtle.png"
-#     # "/mnt/data3/3DConst/images/fox.png"
-#     # "/mnt/data3/3DConst/images/train.png"
+#     "/home/cvlab15/project/woojeong/wj_threestudio/images/car.png"
+#     "/home/cvlab15/project/naver_diffusion/matthew/fresh_three/3DConst/threestudio/images/motor.png" 
+#     "/home/cvlab15/project/woojeong/wj_threestudio/images/a_ceramic_lion.png"
+# )
+
+
+# cal_vals=(
+#     180
+#     0
+#     90
+# )
+
+# cfgs=(
+#     7.5
+#     7.5
+#     100
 # )
 
 
@@ -194,8 +174,8 @@ done
 # python launch.py \
 #     --config custom/threestudio-3dgs/configs/gau_stable_diffusion.yaml \
 #     --train \
-#     --gpu 2 \
-#     system.tag="x___results_for_improvement_ours_random" \
+#     --gpu 0 \
+#     system.tag="results_for_comparison_with_other_baselines_${cfgs[i]}" \
 #     system.three_noise=true \
 #     system.pytorch_three=false \
 #     data.num_multiview=2 \
@@ -211,10 +191,10 @@ done
 #     system.noise_alter_interval=30 \
 #     system.consistency_mask=false \
 #     data.multiview_deg=5 \
-#     data.constant_viewpoints=false \
+#     data.constant_viewpoints=true \
 #     data.num_const_views=15 \
 #     system.reprojection_info=false \
-#     system.guidance.guidance_scale=7.5 \
+#     system.guidance.guidance_scale="${cfgs[i]}" \
 #     system.guidance.add_loss="cosine_sim" \
 #     system.guidance.use_normalized_grad=false \
 #     system.guidance.add_loss_stepping=false \
@@ -230,14 +210,18 @@ done
 #     system.guidance.debugging=false \
 #     system.noise_interval_schedule=true \
 #     trainer.val_check_interval=100 \
-#     system.guidance.cfg_lastup=true \
 #     data.n_val_views=20 \
+#     system.guidance.cfg_lastup=true \
 
 # done
 
 # prompts=(
 #     # "a DSLR photo of an owl"
 #     # "a DSLR photo of an owl"
+#     # "a DSLR photo of an owl"
+#     # "a DSLR photo of an owl"
+#     "a cute meercat"
+#     "a cute meercat"
 #     "a cute meercat"
 #     "a cute meercat"
 # )
@@ -245,6 +229,10 @@ done
 # img_dirs=(
 #     # "/home/cvlab15/project/woojeong/naver/images/owl.jpeg"
 #     # "/home/cvlab15/project/woojeong/naver/images/owl.jpeg"
+#     # "/home/cvlab15/project/woojeong/naver/images/owl.jpeg"
+#     # "/home/cvlab15/project/woojeong/naver/images/owl.jpeg"
+#     "/home/cvlab15/project/soowon/naver/3DConst/threestudio/load/images/meercat.png"
+#     "/home/cvlab15/project/soowon/naver/3DConst/threestudio/load/images/meercat.png"
 #     "/home/cvlab15/project/soowon/naver/3DConst/threestudio/load/images/meercat.png"
 #     "/home/cvlab15/project/soowon/naver/3DConst/threestudio/load/images/meercat.png"
 # )
@@ -252,15 +240,23 @@ done
 # cal_vals=(
 #     # 45
 #     # 45
+#     # 45
+#     # 45
+#     135
+#     135
 #     135
 #     135
 # )
 
 # interval=(
-#     # 35
-#     # 45
-#     35
-#     45
+#     # 8
+#     # 15
+#     # 25
+#     # 32
+#     8
+#     15
+#     25
+#     32
 # )
 
 
@@ -269,8 +265,8 @@ done
 # python launch.py \
 #     --config custom/threestudio-3dgs/configs/gau_stable_diffusion.yaml \
 #     --train \
-#     --gpu 0 \
-#     system.tag="real_geo_only_short_on_10_off_${interval[i]}_letsgo!" \
+#     --gpu 2 \
+#     system.tag="real_geo_only_short_on_5_off_${interval[i]}" \
 #     system.three_noise=true \
 #     system.pytorch_three=false \
 #     data.num_multiview=2 \
@@ -298,7 +294,7 @@ done
 #     system.guidance.vis_grad=true \
 #     system.guidance.use_disp_loss=false \
 #     system.guidance.use_sim_loss=true \
-#     system.guidance.weight_sim_loss=30.0 \
+#     system.guidance.weight_sim_loss=5.0 \
 #     system.guidance.weight_disp_loss=1.0 \
 #     trainer.max_steps=3000 \
 #     system.guidance.backprop_grad=false \
@@ -309,55 +305,56 @@ done
 #     system.guidance.geo_re_optimize=true \
 #     system.guidance.geo_interval=false \
 #     system.guidance.geo_interv_different=true \
-#     system.guidance.geo_intr_on=10 \
+#     system.guidance.geo_intr_on=5 \
 #     system.guidance.geo_intr_off="${interval[i]}" \
 #     system.guidance.geo_start_int=0 \
 #     trainer.val_check_interval=100 \
 
 # done
 
+
 # prompts=(
+#     "a zoomed out DSLR photo of a ceramic lion, white background"
+#     "a zoomed out DSLR photo of a ceramic lion, white background"
+#     "a zoomed out DSLR photo of a ceramic lion, white background"
+#     "a zoomed out DSLR photo of a ceramic lion, white background"
 #     "a DSLR photo of an owl"
 #     "a DSLR photo of an owl"
 #     "a DSLR photo of an owl"
 #     "a DSLR photo of an owl"
-#     "a cute meercat"
-#     "a cute meercat"
-#     "a cute meercat"
-#     "a cute meercat"
 # )
 
 # img_dirs=(
+#     "/home/cvlab15/project/woojeong/wj_threestudio/images/a_ceramic_lion.png"
+#     "/home/cvlab15/project/woojeong/wj_threestudio/images/a_ceramic_lion.png"
+#     "/home/cvlab15/project/woojeong/wj_threestudio/images/a_ceramic_lion.png"
+#     "/home/cvlab15/project/woojeong/wj_threestudio/images/a_ceramic_lion.png"
 #     "/home/cvlab15/project/woojeong/naver/images/owl.jpeg"
 #     "/home/cvlab15/project/woojeong/naver/images/owl.jpeg"
 #     "/home/cvlab15/project/woojeong/naver/images/owl.jpeg"
 #     "/home/cvlab15/project/woojeong/naver/images/owl.jpeg"
-#     "/home/cvlab15/project/soowon/naver/3DConst/threestudio/load/images/meercat.png"
-#     "/home/cvlab15/project/soowon/naver/3DConst/threestudio/load/images/meercat.png"
-#     "/home/cvlab15/project/soowon/naver/3DConst/threestudio/load/images/meercat.png"
-#     "/home/cvlab15/project/soowon/naver/3DConst/threestudio/load/images/meercat.png"
 # )
 
 # cal_vals=(
+#     90
+#     90
+#     90
+#     90
 #     45
 #     45
 #     45
 #     45
-#     135
-#     135
-#     135
-#     135
 # )
 
-# interval=(
+# iter=(
 #     400
-#     600
 #     800
-#     1000
+#     1200
+#     1600
 #     400
-#     600
 #     800
-#     1000
+#     1200
+#     1600  
 # )
 
 
@@ -366,8 +363,8 @@ done
 # python launch.py \
 #     --config custom/threestudio-3dgs/configs/gau_stable_diffusion.yaml \
 #     --train \
-#     --gpu 7 \
-#     system.tag="real_only_geo_cos_front_start_400_out_long_${interval[i]}" \
+#     --gpu 0 \
+#     system.tag="real_only_geo_both_front_on_intv_30_${iter[i]}" \
 #     system.three_noise=true \
 #     system.pytorch_three=false \
 #     data.num_multiview=2 \
@@ -387,7 +384,7 @@ done
 #     data.num_const_views=10 \
 #     system.reprojection_info=false \
 #     system.guidance.guidance_scale=7.5 \
-#     system.guidance.add_loss="cosine_sim" \
+#     system.guidance.add_loss="no_loss" \
 #     system.guidance.use_normalized_grad=false \
 #     system.guidance.add_loss_stepping=false \
 #     system.guidance.grad_cons_mask=false \
@@ -403,224 +400,19 @@ done
 #     system.guidance.disp_loss_to_latent=false \
 #     system.guidance.only_geo=true \
 #     system.guidance.only_geo_front_on=true \
-#     system.guidance.geo_re_optimize=true \
-#     system.guidance.geo_interval=true \
-#     system.guidance.geo_interval_len="${interval[i]}" \
-#     system.guidance.geo_start_int=400 \
+#     system.guidance.iter_only_geo="${iter[i]}" \
 #     trainer.val_check_interval=100 \
 
 # done
 
 
-# prompts=(
-#     "a zoomed out DSLR photo of a ceramic lion, white background"
-#     "a DSLR photo of an owl"
-#     "a cute meercat"
-#     "a rabbit on a pancake"
-#     "a peacock with a crown"
-#     "a mysterious LEGO wizard"
-#     "a product photo of cat-shaped toy"
-#     "a full body of a cat wearing a hat"
-# )
-
-# img_dirs=(
-#     "/home/cvlab15/project/woojeong/wj_threestudio/images/a_ceramic_lion.png"
-#     "/home/cvlab15/project/woojeong/naver/images/owl.jpeg"
-#     "/home/cvlab15/project/soowon/naver/3DConst/threestudio/load/images/meercat.png"
-#     "/home/cvlab15/project/woojeong/naver/images/rabbit-pancake.jpeg"
-#     "/home/cvlab15/project/woojeong/naver/images/peacock.png"
-#     "/home/cvlab15/project/woojeong/naver/images/lego-wizard2.png"
-#     "/home/cvlab15/project/woojeong/naver/images/cat-toy.png"
-#     "/home/cvlab15/project/woojeong/naver/images/cat-hat.png"
-# )
-
-# cal_vals=(
-#     90
-#     45
-#     135
-#     90
-#     90
-#     90
-#     75
-#     135
-# )
-
 # for i in "${!prompts[@]}";
 # do
 # python launch.py \
 #     --config custom/threestudio-3dgs/configs/gau_stable_diffusion.yaml \
 #     --train \
-#     --gpu 2 \
-#     system.tag="ours" \
-#     system.three_noise=true \
-#     system.pytorch_three=false \
-#     data.num_multiview=2 \
-#     system.prompt_processor.prompt="${prompts[i]}" \
-#     system.image_dir="${img_dirs[i]}" \
-#     system.calibration_value="${cal_vals[i]}" \
-#     system.surf_radius=0.05 \
-#     system.calibration_value="${cal_vals[i]}" \
-#     system.geometry.densification_interval=300 \
-#     system.geometry.prune_interval=300 \
-#     system.gau_d_cond=false \
-#     system.n_pts_upscaling=9 \
-#     system.background_rand="ball" \
-#     system.noise_alter_interval=30 \
-#     system.consistency_mask=false \
-#     data.multiview_deg=15 \
-#     data.n_val_views=30 \
-#     data.constant_viewpoints=true \
-#     data.num_const_views=10 \
-#     system.reprojection_info=false \
-#     system.guidance.guidance_scale=7.5 \
-#     system.guidance.add_loss="cosine_sim" \
-#     system.guidance.use_normalized_grad=false \
-#     system.guidance.add_loss_stepping=false \
-#     system.guidance.grad_cons_mask=false \
-#     system.guidance.mask_w_timestep=false \
-#     system.guidance.vis_grad=true \
-#     system.guidance.use_disp_loss=false \
-#     system.guidance.use_sim_loss=true \
-#     system.guidance.weight_sim_loss=5.0 \
-#     system.guidance.weight_disp_loss=1.0 \
-#     trainer.max_steps=3000 \
-#     system.guidance.backprop_grad=false \
-#     system.guidance.debugging=false \
-#     system.guidance.disp_loss_to_latent=false \
-#     trainer.val_check_interval=100 \
-
-# done
-
-# prompts=(
-#     "a DSLR photo of an owl"
-#     "a DSLR photo of an owl"
-#     "a DSLR photo of an owl"
-#     "a DSLR photo of an owl"
-#     "a cute meercat"
-#     "a cute meercat"
-#     "a cute meercat"
-#     "a cute meercat"
-# )
-
-# img_dirs=(
-#     "/home/cvlab15/project/woojeong/naver/images/owl.jpeg"
-#     "/home/cvlab15/project/woojeong/naver/images/owl.jpeg"
-#     "/home/cvlab15/project/woojeong/naver/images/owl.jpeg"
-#     "/home/cvlab15/project/woojeong/naver/images/owl.jpeg"
-#     "/home/cvlab15/project/soowon/naver/3DConst/threestudio/load/images/meercat.png"
-#     "/home/cvlab15/project/soowon/naver/3DConst/threestudio/load/images/meercat.png"
-#     "/home/cvlab15/project/soowon/naver/3DConst/threestudio/load/images/meercat.png"
-#     "/home/cvlab15/project/soowon/naver/3DConst/threestudio/load/images/meercat.png"
-# )
-
-# cal_vals=(
-#     45
-#     45
-#     45
-#     45
-#     135
-#     135
-#     135
-#     135
-# )
-
-# ev_thresh_vals=(
-#     4.0
-#     3.5
-#     3.0
-#     2.5
-#     4.0
-#     3.5
-#     3.0
-#     2.5
-# )
-
-
-
-# for i in "${!prompts[@]}";
-# do
-# python launch.py \
-#     --config custom/threestudio-3dgs/configs/gau_stable_diffusion.yaml \
-#     --train \
-#     --gpu 2 \
-#     system.tag="fin_all_degrees_visualize_iter_300" \
-#     system.three_noise=false \
-#     system.pytorch_three=false \
-#     data.num_multiview=0 \
-#     data.batch_size=322 \
-#     system.prompt_processor.prompt="${prompts[i]}" \
-#     system.image_dir="${img_dirs[i]}" \
-#     system.surf_radius=0.05 \
-#     system.calibration_value="${cal_vals[i]}" \
-#     system.geometry.densification_interval=300 \
-#     system.geometry.prune_interval=300 \
-#     system.gau_d_cond=false \
-#     system.n_pts_upscaling=9 \
-#     system.background_rand="ball" \
-#     system.noise_alter_interval=30 \
-#     system.consistency_mask=false \
-#     data.multiview_deg=5 \
-#     data.constant_viewpoints=true \
-#     data.num_const_views=322 \
-#     system.reprojection_info=false \
-#     system.depth_warp=false \
-#     system.guidance.guidance_scale=7.5 \
-#     system.guidance.add_loss="no_loss" \
-#     system.guidance.weight_add_loss=10.0 \
-#     system.guidance.use_normalized_grad=true \
-#     system.guidance.add_loss_stepping=false \
-#     system.guidance.grad_cons_mask=false \
-#     system.guidance.mask_w_timestep=false \
-#     system.guidance.vis_grad=true \
-#     system.guidance.debugging=true \
-#     system.guidance.grad_thresh=2.5 \
-#     trainer.max_steps=3000 \
-#     system.vis_every_grad=true \
-#     system.everyview_vis_iter=300 \
-#     system.guidance.vis_every_thresh="${ev_thresh_vals[i]}" \
-
-# done
-
-# prompts=(
-#     # "a zoomed out DSLR photo of a ceramic lion, white background"
-#     # "a peacock with a crown"
-#     # "a mysterious LEGO wizard"
-#     # "a product photo of cat-shaped toy"
-#     "a cute meercat"
-#     "a rabbit on a pancake"
-#     # "a DSLR photo of an owl"
-#     # "a full body of a cat wearing a hat"
-# )
-
-# img_dirs=(
-#     # "/home/cvlab15/project/woojeong/wj_threestudio/images/a_ceramic_lion.png"
-#     # "/home/cvlab15/project/woojeong/naver/images/peacock.png"
-#     # "/home/cvlab15/project/woojeong/naver/images/lego-wizard2.png"
-#     # "/home/cvlab15/project/woojeong/naver/images/cat-toy.png"
-#     "/home/cvlab15/project/soowon/naver/3DConst/threestudio/load/images/meercat.png"
-#     "/home/cvlab15/project/woojeong/naver/images/rabbit-pancake.jpeg"
-#     # "/home/cvlab15/project/woojeong/naver/images/owl.jpeg"
-#     # "/home/cvlab15/project/woojeong/naver/images/cat-hat.png"
-# )
-
-# cal_vals=(
-#     # 90
-#     # 90
-#     # 90
-#     # 75
-#     135
-#     90
-#     # 45
-#     # 135
-# )
-
-# for i in "${!prompts[@]}";
-# do
-# python launch.py \
-#     --config custom/threestudio-3dgs/configs/gau_stable_diffusion.yaml \
-#     --train \
-#     --gpu 1 \
-#     system.tag="SD_c75_real_dissimilarity_cosine_loss_5_0_stepped" \
+#     --gpu 0 \
+#     system.tag="crrraaaazzzzzzyyyyyyy" \
 #     system.three_noise=true \
 #     system.pytorch_three=false \
 #     data.num_multiview=2 \
@@ -641,69 +433,85 @@ done
 #     data.num_const_views=6 \
 #     system.reprojection_info=false \
 #     system.guidance.guidance_scale=7.5 \
-#     system.guidance.add_loss="cosine_dissim" \
-#     system.guidance.weight_add_loss=5.0 \
-#     system.guidance.add_loss_stepping=true \
+#     system.guidance.add_loss="cosine_sim" \
+#     system.guidance.weight_add_loss=0.23 \
+#     system.guidance.use_normalized_grad=false \
+#     system.guidance.add_loss_stepping=false \
+#     system.guidance.grad_cons_mask=false \
+#     system.guidance.mask_w_timestep=false \
+#     system.guidance.vis_grad=false \
+#     system.guidance.debugging=false \
 #     trainer.max_steps=3000 \
-
 
 # done
 
-# python launch.py --config custom/threestudio-3dgs/configs/gs_sds_pc_init_noising_multi.yaml  --train \
-#     --gpu 7 \
-#     system.tag="finmask_penta_view_2_2_pts_002" \
-#     system.gradient_masking=true \
-#     system.prompt_processor.prompt="a zoomed out DSLR photo of a ceramic lion, white background" \
-#     system.image_dir="/home/cvlab15/project/woojeong/wj_threestudio/images/a_ceramic_lion.png" \
-#     system.calibration_value=90 \
-#     system.pts_radius=0.02 \
-#     system.geometry.split_thresh=0.01 \
-#     system.nearby_fusing=false \
-
 # prompts=(
-#     "a zoomed out DSLR photo of a ceramic lion, white background"
-#     "a peacock with a crown"
-#     "a DSLR photo of a silver metallic robot tiger"
-#     "a mysterious LEGO wizard"
-#     "a product photo of cat-shaped toy"
-#     "a DSLR photo of an ironman figure"
+#     # "a zoomed out DSLR photo of a ceramic lion, white background"
+#     # "a peacock with a crown"
+#     # "a mysterious LEGO wizard"
+#     # "a product photo of cat-shaped toy"
+#     "a cute meercat"
+#     # "a rabbit on a pancake"
+#     "a DSLR photo of an owl"
+#     # "a full body of a cat wearing a hat"
 # )
 
-# --config custom/threestudio-3dgs/configs/gau_stable_diffusion.yaml \
-
-
 # img_dirs=(
-#     "/home/cvlab15/project/woojeong/wj_threestudio/images/a_ceramic_lion.png"
-#     "/home/cvlab15/project/woojeong/naver/images/peacock.png"
-#     "/home/cvlab15/project/naver_diffusion/matthew/fresh_three/3DConst/threestudio/images/tiger.jpeg"
-#     "/home/cvlab15/project/woojeong/naver/images/lego-wizard2.png"
-#     "/home/cvlab15/project/woojeong/naver/images/cat-toy.png"
-#     "/home/cvlab15/project/naver_diffusion/matthew/matt_threestudio/threestudio/threestudio/images/ironman.png"
+#     # "/home/cvlab15/project/woojeong/wj_threestudio/images/a_ceramic_lion.png"
+#     # "/home/cvlab15/project/woojeong/naver/images/peacock.png"
+#     # "/home/cvlab15/project/woojeong/naver/images/lego-wizard2.png"
+#     # "/home/cvlab15/project/woojeong/naver/images/cat-toy.png"
+#     "/home/cvlab15/project/soowon/naver/3DConst/threestudio/load/images/meercat.png"
+#     # "/home/cvlab15/project/woojeong/naver/images/rabbit-pancake.jpeg"
+#     "/home/cvlab15/project/woojeong/naver/images/owl.jpeg"
+#     # "/home/cvlab15/project/woojeong/naver/images/cat-hat.png"
 # )
 
 # cal_vals=(
-#     0
-#     0
-#     0
-#     0
-#     345
-#     0    
+#     # 90
+#     # 90
+#     # 90
+#     # 75
+#     135
+#     # 90
+#     45
+#     # 135
 # )
 
 # for i in "${!prompts[@]}";
 # do
 # python launch.py \
-#     --config configs/prolificdreamer-noise.yaml \
+#     --config custom/threestudio-3dgs/configs/gau_stable_diffusion.yaml \
 #     --train \
-#     --gpu 2 \
-#     system.tag="noise_pc_pts005" \
-#     system.gradient_masking=false \
-#     data.num_multiview=1 \
+#     --gpu 0 \
+#     system.tag="final_visualizer_deg_15" \
 #     system.three_noise=true \
-#     system.identical_noising=false \
+#     system.pytorch_three=false \
+#     data.batch_size=2 \
+#     data.num_multiview=2 \
 #     system.prompt_processor.prompt="${prompts[i]}" \
 #     system.image_dir="${img_dirs[i]}" \
-#     system.pts_radius=0.05 \
-#     system.calibration_value="${cal_vals[i]}"
-# done
+#     system.calibration_value="${cal_vals[i]}" \
+#     system.surf_radius=0.05 \
+#     system.calibration_value="${cal_vals[i]}" \
+#     system.geometry.densification_interval=300 \
+#     system.geometry.prune_interval=300 \
+#     system.gau_d_cond=false \
+#     system.n_pts_upscaling=9 \
+#     system.background_rand="ball" \
+#     system.noise_alter_interval=30 \
+#     system.consistency_mask=false \
+#     data.multiview_deg=15 \
+#     data.constant_viewpoints=true \
+#     data.num_const_views=6 \
+#     system.reprojection_info=false \
+#     system.guidance.guidance_scale=7.5 \
+#     system.guidance.add_loss="no_loss" \
+#     system.guidance.weight_add_loss=5.0 \
+#     system.guidance.add_loss_stepping=true \
+#     trainer.max_steps=3000 \
+#     system.guidance.use_normalized_grad=true \
+#     system.guidance.vis_grad=true \
+#     system.guidance.debugging=true \
 
+# done

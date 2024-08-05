@@ -45,17 +45,17 @@ prompts=(
 
 
 cal_vals=(
-    0
-    0
-    0
-    0
-    0
-    0
-    0
-    0
-    0
-    0
-    0
+    90
+    90
+    90
+    90
+    90
+    90
+    90
+    90
+    90
+    90
+    90
 )
 
 # cal_vals=(
@@ -104,8 +104,8 @@ do
 python launch.py \
     --config custom/threestudio-3dgs/configs/gau_stable_diffusion.yaml \
     --train \
-    --gpu 4 \
-    system.tag="pointcloud_vis" \
+    --gpu 5 \
+    system.tag="pointcloud_vis_90" \
     system.three_noise=false \
     system.pytorch_three=false \
     data.num_multiview=1 \
