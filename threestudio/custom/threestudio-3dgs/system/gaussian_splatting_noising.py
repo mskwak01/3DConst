@@ -760,7 +760,7 @@ class GaussianSplatting(BaseLift3DSystem):
                     self.cfg.loss[name.replace("loss_", "lambda_")]
                 )
         
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
 
         xyz_mean = None
         
