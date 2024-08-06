@@ -772,7 +772,7 @@ class StableDiffusionGuidance(BaseObject):
         same_timestep=True,
         **kwargs,
     ):
-        
+        raise NotImplementedError("")
         batch_size = rgb.shape[0]
         
         rgb_BCHW = rgb.permute(0, 3, 1, 2)

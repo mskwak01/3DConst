@@ -1,6 +1,6 @@
 name: "gau_stable_diffusion"
 tag: "${rmspace:${system.prompt_processor.prompt},_}_${system.tag}"
-exp_root_dir: "/home/cvlab06/project/donghoon/text-to-3d/3DConst/outputs"
+exp_root_dir: "/media/hdd/donghoon/3DConst/outputs"
 seed: 0
 data_type: "random-multiview-datamodule"
 data:
@@ -134,12 +134,14 @@ system:
     lambda_scales: 0.0001
     lambda_tv_loss: 1.0
     lambda_depth_tv_loss: 1.0
+    lambda_sim: 0.0
+    lambda_disp: 0.0
 
 trainer:
   max_steps: 5000
   log_every_n_steps: 1
   num_sanity_val_steps: 0
-  val_check_interval: 250
+  val_check_interval: 500
   enable_progress_bar: true
   precision: 32-true
   # deterministic: true

@@ -10,18 +10,18 @@ prompts=(
 )
 
 img_dirs=(
-    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/tiger.jpeg"
-    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/tiger.jpeg"
-    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/tiger.jpeg"
-    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/tiger.jpeg"
-    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/tiger.jpeg"
-    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/tiger.jpeg"
-    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/tiger.jpeg"
-    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/tiger.jpeg"
+    "/home/cvlab06/project/donghoon/text-to-3d/3DConst/images/tiger.jpeg"
+    "/home/cvlab06/project/donghoon/text-to-3d/3DConst/images/tiger.jpeg"
+    "/home/cvlab06/project/donghoon/text-to-3d/3DConst/images/tiger.jpeg"
+    "/home/cvlab06/project/donghoon/text-to-3d/3DConst/images/tiger.jpeg"
+    "/home/cvlab06/project/donghoon/text-to-3d/3DConst/images/tiger.jpeg"
+    "/home/cvlab06/project/donghoon/text-to-3d/3DConst/images/tiger.jpeg"
+    "/home/cvlab06/project/donghoon/text-to-3d/3DConst/images/tiger.jpeg"
+    "/home/cvlab06/project/donghoon/text-to-3d/3DConst/images/tiger.jpeg"
 )
 
 cal_vals=(
-    90
+    # 90
     90
     90
     90
@@ -32,7 +32,7 @@ cal_vals=(
 )
 
 cfg_up_iter=(
-    1200
+    # 1200
     1500
     1800
     2100
@@ -43,7 +43,7 @@ cfg_up_iter=(
 )
 
 max_steps=(
-    3000
+    # 3000
     3000
     3000
     3000
@@ -54,7 +54,7 @@ max_steps=(
 )
 
 gpu_val=(
-    0
+    # 0
     1
     2
     3

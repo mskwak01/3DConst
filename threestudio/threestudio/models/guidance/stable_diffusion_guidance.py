@@ -182,6 +182,7 @@ class StableDiffusionGuidance(BaseObject):
             self.cos_loss = nn.CosineEmbeddingLoss(reduction="sum")
 
         self.guidance_scale = self.cfg.guidance_scale
+        self.initial_guidance_scale = self.guidance_scale
         threestudio.info(f"Loaded Stable Diffusion!")
 
     @torch.cuda.amp.autocast(enabled=False)
@@ -745,12 +746,15 @@ class StableDiffusionGuidance(BaseObject):
         same_timestep=True,
         **kwargs,
     ):
+        # raise NotImplementedError("")
         batch_size = rgb.shape[0]
         
         rgb_BCHW = rgb.permute(0, 3, 1, 2)
         latents: Float[Tensor, "B 4 64 64"]
         
         if self.cfg.cfg_lastup and noise_map is not None: 
+            # self.guidance_scale = self.initial_guidance_scale * (self.num_train_timesteps - kwargs["iter"]) / self.num_train_timesteps
+            # print(f"guidance_scale for iter {kwargs['iter']} = {self.guidance_scale}")
             if kwargs["iter"] > self.cfg.cfg_change_iter:
                 self.guidance_scale = 100
         
@@ -926,6 +930,8 @@ class StableDiffusionGuidance(BaseObject):
                     
                     if "grad_mask" in return_dict.keys():
                         grad_mask = return_dict["grad_mask"]
+            else:
+                similarity_loss = 0
                     
             
             if self.cfg.use_disp_loss:
@@ -961,7 +967,8 @@ class StableDiffusionGuidance(BaseObject):
                     zero_pad = torch.zeros_like(warp_grad).detach()
                     disp_loss = 0.5 * F.mse_loss(warp_grad, zero_pad, reduction="sum") / warp_grad.shape[0]
                 # import pdb; pdb.set_trace()
-
+            else:
+                disp_loss = 0
 
             if self.cfg.vis_grad:
                 if kwargs["iter"] % 250 == 0:
@@ -1134,21 +1141,24 @@ class StableDiffusionGuidance(BaseObject):
         else:
             total_loss = loss_sds
         
-        if self.cfg.use_sim_loss:
-            if self.cfg.add_loss_stepping:
-                if loss_sds < 100.:
-                    total_loss += self.cfg.weight_sim_loss * similarity_loss
-                else:
-                    total_loss += self.cfg.weight_sim_loss * 10 * similarity_loss
+        # if self.cfg.use_sim_loss:
+        #     if self.cfg.add_loss_stepping:
+        #         if loss_sds < 100.:
+        #             total_loss += self.cfg.weight_sim_loss * similarity_loss
+        #         else:
+        #             total_loss += self.cfg.weight_sim_loss * 10 * similarity_loss
                     
-            else:
-                total_loss += self.cfg.weight_sim_loss * similarity_loss
+        #     else:
+        #         total_loss += self.cfg.weight_sim_loss * similarity_loss
             
-        if self.cfg.use_disp_loss:
-            total_loss += disp_loss
+        # if self.cfg.use_disp_loss:
+        #     total_loss += disp_loss
             
         guidance_out = {
-            "loss_sds": total_loss,
+            "loss_sds": loss_sds,
+            "loss_sim": similarity_loss,
+            "loss_disp": disp_loss,
+            # "loss_total": total_loss,
             "grad_norm": grad.norm(),
             "min_step": self.min_step,
             "max_step": self.max_step,

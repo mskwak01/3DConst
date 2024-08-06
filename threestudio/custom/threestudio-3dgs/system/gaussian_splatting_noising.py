@@ -715,6 +715,8 @@ class GaussianSplatting(BaseLift3DSystem):
         viewspace_point_tensor = out["viewspace_points"]
 
         loss_sds = 0.0
+        loss_sim = 0.0
+        loss_disp = 0.0
         loss = 0.0
 
         self.log(
@@ -725,6 +727,19 @@ class GaussianSplatting(BaseLift3DSystem):
             prog_bar=True,
             logger=True,
         )
+
+        # if self.cfg.use_sim_loss:
+        #     if self.cfg.add_loss_stepping:
+        #         if loss_sds < 100.:
+        #             total_loss += self.cfg.weight_sim_loss * similarity_loss
+        #         else:
+        #             total_loss += self.cfg.weight_sim_loss * 10 * similarity_loss
+                    
+        #     else:
+        #         total_loss += self.cfg.weight_sim_loss * similarity_loss
+            
+        # if self.cfg.use_disp_loss:
+        #     total_loss += disp_loss
 
         for name, value in guidance_out.items():
             self.log(f"train/{name}", value)
@@ -794,45 +809,47 @@ class GaussianSplatting(BaseLift3DSystem):
         return {"loss": loss_sds}
 
     def validation_step(self, batch, batch_idx):
-        out = self(batch)        
+        self.test_step(batch, batch_idx)
+        # out = self(batch)        
 
-        self.save_image_grid(
+        # self.save_image_grid(
             
-            f"it{self.global_step}-{batch['index'][0]}.png",
-            [
-                {
-                    "type": "rgb",
-                    "img": out["comp_rgb"][0],
-                    "kwargs": {"data_format": "HWC"},
-                },
-            ]
-            + (
-                [
-                    {
-                        "type": "rgb",
-                        "img": out["comp_normal"][0],
-                        "kwargs": {"data_format": "HWC", "data_range": (0, 1)},
-                    }
-                ]
-                if "comp_normal" in out
-                else []
-            )
-            + (
-                [
-                    {
-                        "type": "rgb",
-                        "img": out["pts_depth"][0],
-                        "kwargs": {"data_range": (0, 1)},
-                    }
-                ]
-                if "pts_depth" in out
-                else []
-            ),
-            name="validation_step",
-            step=self.global_step,
-        )
+        #     f"it{self.global_step}-{batch['index'][0]}.png",
+        #     [
+        #         {
+        #             "type": "rgb",
+        #             "img": out["comp_rgb"][0],
+        #             "kwargs": {"data_format": "HWC"},
+        #         },
+        #     ]
+        #     + (
+        #         [
+        #             {
+        #                 "type": "rgb",
+        #                 "img": out["comp_normal"][0],
+        #                 "kwargs": {"data_format": "HWC", "data_range": (0, 1)},
+        #             }
+        #         ]
+        #         if "comp_normal" in out
+        #         else []
+        #     )
+        #     + (
+        #         [
+        #             {
+        #                 "type": "rgb",
+        #                 "img": out["pts_depth"][0],
+        #                 "kwargs": {"data_range": (0, 1)},
+        #             }
+        #         ]
+        #         if "pts_depth" in out
+        #         else []
+        #     ),
+        #     name="validation_step",
+        #     step=self.global_step,
+        # )
 
     def on_validation_epoch_end(self):
+        self.on_test_epoch_end()
         pass
 
     def test_step(self, batch, batch_idx):
