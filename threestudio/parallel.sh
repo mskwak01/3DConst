@@ -1,4 +1,4 @@
-bash naive_run.sh
-bash naive_run_up.sh
-bash parallel_run.sh
-bash parallel_run_straight.sh
+run naive_run.sh
+run naive_run_up.sh
+run parallel_run.sh
+run parallel_run_straight.sh

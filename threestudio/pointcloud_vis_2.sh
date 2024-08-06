@@ -16,96 +16,56 @@
 ######################
 
 prompts=(
-    "airplane"
-    "ast"
-    "balle"
-    "big-elephant"
-    "blue-bird"
-    "car"
-    "elephant"
-    "elephant2"
-    "fox"
-    "parrot"
-    "wizard-lego"
+    # "x_dino"
+    # "x_dino_2"
+    # "x_horse_1"
+    # "x_horse_2"
+    # "x_horse_3"
+    # "x_horse_4"
+    "x_bird_1"
+    "x_bird_2"
 )
-
-# prompts=(
-#     # "a beautiful rainbow fish"
-#     # "a cat wearing a bee costume"
-#     # "a cat with wings"
-#     # "a chow chow puppy"
-#     # "a goose made out of gold"
-#     # "a pug made out of metal"
-#     # "a toy robot"
-#     # "a snail"
-#     "a turtle"
-#     # "a fennec fox"
-#     # "a train engine made out of clay"
-# )
-
 
 cal_vals=(
-    90
-    90
-    90
-    90
-    90
-    90
-    90
-    90
-    90
-    90
-    90
+    # 0
+    # 0
+    # 0
+    # 0
+    # 0
+    # 0
+    0
+    0
 )
-
-# cal_vals=(
-#     # 135 #180
-#     # 90
-#     # 90
-#     # # 90
-#     # 135 #0 + 135
-#     # # 90
-#     # 270
-#     # 120 #90 + 30
-#     # 315
-#     # 90
-#     # # 90
-#     0
-# )
 
 img_dirs=(
-    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images/airplane.png"
-    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images/ast.png"
-    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images/balle.png"
-    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images/big-elephant.png"
-    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images/blue-bird.png"
-    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images/car.png"
-    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images/elephant.png"
-    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images/elephant2.png"
-    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images/fox.png"
-    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images/parrot.png"
-    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/ext_images/wizard-lego.png"
-
+    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/dinosaur.jpg"
+    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/dinosaur_2.png"
+    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/horse_1.png"
+    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/horse_2.png"
+    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/horse_3.png"
+    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/horse_4.png"
+    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/bird_1.png"
+    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/bird_2.png"
 )
 
-# gpu_val=(
-#     0
-#     # 1
-#     # 2
-#     # 3
-#     # 4
-#     # 5
-#     # 6
-#     # 7
-# )
+gpu_val=(
+    # 0
+    # 1
+    # 2
+    # 3
+    # 4
+    # 5
+    6
+    7
+)
 
 for i in "${!prompts[@]}";
 do
 python launch.py \
     --config custom/threestudio-3dgs/configs/gau_stable_diffusion.yaml \
     --train \
-    --gpu 5 \
-    system.tag="pointcloud_vis_90" \
+    --gpu "${gpu_val[i]}" \
+    system.tag="pointcloud_vis" \
     system.three_noise=false \
     system.pytorch_three=false \
     data.num_multiview=1 \
@@ -144,7 +104,7 @@ python launch.py \
     system.guidance.cfg_change_iter=1500 \
     system.point_vis=true \
     data.n_val_views=20 \
-    # &
+    &
     
 done
 

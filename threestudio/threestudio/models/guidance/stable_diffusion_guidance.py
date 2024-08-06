@@ -897,6 +897,8 @@ class StableDiffusionGuidance(BaseObject):
         # loss = SpecifyGradient.apply(latents, grad)
         # SpecifyGradient is not straghtforward, use a reparameterization trick instead
         target = (latents - grad).detach()
+
+        similarity_loss = 0.0
                         
         if kwargs["re_dict"] is not None:
             if noise_map is not None:
@@ -1003,7 +1005,6 @@ class StableDiffusionGuidance(BaseObject):
             #     target = (latents - grad).detach()
             
         loss_sds = 0.5 * F.mse_loss(latents, target, reduction="sum") / batch_size
-
             # import pdb; pdb.set_trace()    
                 # if self.cfg.debugging:
                 #     import pdb; pdb.set_trace()

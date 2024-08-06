@@ -33,6 +33,8 @@ view_angle=(
     # 12
 )
 
+
+
 for i in "${!prompts[@]}";
 do
 python launch.py \

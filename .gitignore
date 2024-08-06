@@ -13,6 +13,7 @@ data/
 RASTER/
 controlnet/
 output/
+# images/
 
 threestudio/custom/threestudio-3dgs/diff-gaussian-rasterization/
 threestudio/custom/threestudio-3dgs/simple-knn

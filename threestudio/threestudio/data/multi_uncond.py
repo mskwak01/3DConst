@@ -304,8 +304,12 @@ class RandomCameraIterableDataset(IterableDataset, Updateable):
             # import pdb; pdb.set_trace()
 
             if self.cfg.rand_multi_deg:
-                multi_deg = torch.rand(1) * self.multiview_deg
-                disp_degs = multi_deg * torch.tensor(nearby_list[:self.num_multiview])
+                if self.num_multiview != 1:
+                    multi_deg = torch.rand(1) * self.multiview_deg
+                    disp_degs = multi_deg * torch.tensor(nearby_list[:self.num_multiview])
+                elif self.num_multiview == 1:
+                    disp_degs = (2 * torch.rand(1) - 1) * self.multiview_deg
+
             else:
                 disp_degs = self.multiview_deg * torch.tensor(nearby_list[:self.num_multiview])
                     

@@ -16,42 +16,27 @@
 ######################
 
 prompts=(
-    "x_deejae"
-    # "x_bear_2"
-    # "x_bear_3"
-    # "x_bicycle_1"
-    # "x_bicycle_2"
-    # "x_corgi_hat_1"
-    # "x_corgi_hat_2"
-    # "x_corgi_hat_3"
+    "x_liberty_1"
+    "x_liberty_2"
+    "x_liberty_3"
 )
 
 cal_vals=(
     0
-    # 0
-    # 0
-    # 0
-    # 0
-    # 0
-    # 0
-    # 0
+    0
+    0
 )
 
 img_dirs=(
-    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/deejae.png"
-    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/bear_2.png"
-    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/bear_3.jpg"
-    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/bicycle_1.png"
-    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/bicycle_2.jpg"
-    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/corgi_hat.png"
-    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/corgi_hat_2.png"
-    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/corgi_hat_3.png"
+    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/liberty_1.png"
+    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/liberty_2.png"
+    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/liberty_3.png"
 )
 
 gpu_val=(
     0
-    # 1
-    # 2
+    1
+    2
     # 3
     # 4
     # 5

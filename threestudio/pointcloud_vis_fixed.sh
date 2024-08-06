@@ -16,47 +16,47 @@
 ######################
 
 prompts=(
-    "x_deejae"
-    # "x_bear_2"
-    # "x_bear_3"
-    # "x_bicycle_1"
-    # "x_bicycle_2"
-    # "x_corgi_hat_1"
-    # "x_corgi_hat_2"
-    # "x_corgi_hat_3"
+    "a DSLR photo of a bear dressed in medieval armor"
+    "a DSLR photo of a blue jay standing on a large basket of rainbow macarons"
+    "a DSLR photo of a knight holding a lance and sitting on an armored horse"
+    "a DSLR photo of a porcelain dragon"
+    "a DSLR photo of a robot dinosaur"
+    "a zoomed out DSLR photo of a monkey riding a bike" 
+    "a zoomed out DSLR photo of a corgi wearing a top hat" 
+    "a zoomed out DSLR photo of a squirrel DJing"
 )
 
 cal_vals=(
-    0
-    # 0
-    # 0
-    # 0
-    # 0
-    # 0
-    # 0
-    # 0
+    90
+    90
+    90
+    135
+    135
+    135
+    90
+    180
 )
 
 img_dirs=(
+    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/bear_2.png"
+    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/bird_2.png"
+    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/horse_1.png"
+    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/porcelain_2.png"
+    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/dinosaur.jpg"
+    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/bicycle_1.png"
+    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/corgi_hat_3.png"
     "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/deejae.png"
-    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/bear_2.png"
-    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/bear_3.jpg"
-    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/bicycle_1.png"
-    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/bicycle_2.jpg"
-    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/corgi_hat.png"
-    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/corgi_hat_2.png"
-    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/corgi_hat_3.png"
 )
 
 gpu_val=(
     0
-    # 1
-    # 2
-    # 3
-    # 4
-    # 5
-    # 6
-    # 7
+    1
+    2
+    3
+    4
+    5
+    6
+    7
 )
 
 for i in "${!prompts[@]}";

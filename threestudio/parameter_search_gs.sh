@@ -68,19 +68,19 @@ gpu_val=(
     3
 )
 
-multi_deg=(
-    3
-    6 # 0.02 seems best
-    9
-    12
-)
-
-# cfg_dens_iter=(
-#     100
-#     150
-#     200
-#     250
+# multi_deg=(
+#     3
+#     6 # 0.02 seems best
+#     9
+#     12
 # )
+
+guidance_scale=(
+    7.5
+    10
+    20
+    100
+)
 
 
 for i in "${!prompts[@]}";
@@ -89,7 +89,7 @@ python launch.py \
     --config custom/threestudio-3dgs/configs/gau_stable_diffusion.yaml \
     --train \
     --gpu "${gpu_val[i]}" \
-    system.tag="ours_run_random_multi_Xconst_${multi_deg[i]}" \
+    system.tag="ours_run_random_multi_NOCFG_UP_guidance_${guidance_scale[i]}" \
     system.three_noise=true \
     system.pytorch_three=false \
     data.num_multiview=2 \
@@ -97,19 +97,19 @@ python launch.py \
     system.image_dir="${img_dirs[i]}" \
     system.surf_radius=0.05 \
     system.calibration_value="${cal_vals[i]}" \
-    system.geometry.densification_interval=300\
+    system.geometry.densification_interval=300 \
     system.geometry.prune_interval=300 \
     system.gau_d_cond=false \
     system.n_pts_upscaling=9 \
     system.background_rand="ball" \
     system.noise_alter_interval=30 \
     system.consistency_mask=false \
-    data.multiview_deg="${multi_deg[i]}" \
+    data.multiview_deg=9 \
     data.rand_multi_deg=true \
-    data.constant_viewpoints=false \
+    data.constant_viewpoints=true \
     data.num_const_views=15 \
     system.reprojection_info=false \
-    system.guidance.guidance_scale=7.5 \
+    system.guidance.guidance_scale="${guidance_scale[i]}"\
     system.guidance.add_loss="cosine_sim" \
     system.guidance.use_normalized_grad=false \
     system.guidance.add_loss_stepping=false \
@@ -125,7 +125,7 @@ python launch.py \
     system.guidance.debugging=false \
     system.noise_interval_schedule=true \
     trainer.val_check_interval=200 \
-    system.guidance.cfg_lastup=true \
+    system.guidance.cfg_lastup=false \
     system.guidance.cfg_change_iter=2500 \
     data.n_val_views=20 \
     system.pts_var=0.02 \

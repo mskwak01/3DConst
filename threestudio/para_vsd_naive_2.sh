@@ -1,8 +1,8 @@
 prompts=(
-    "a DSLR photo of a bear dressed in medieval armor"
-    "a DSLR photo of a blue jay standing on a large basket of rainbow macarons"
-    "a DSLR photo of a knight holding a lance and sitting on an armored horse"
-    "a DSLR photo of a porcelain dragon"
+    # "a DSLR photo of a bear dressed in medieval armor"
+    # "a DSLR photo of a blue jay standing on a large basket of rainbow macarons"
+    # "a DSLR photo of a knight holding a lance and sitting on an armored horse"
+    # "a DSLR photo of a porcelain dragon"
     "a DSLR photo of a robot dinosaur"
     "a zoomed out DSLR photo of a monkey riding a bike" 
     "a zoomed out DSLR photo of a corgi wearing a top hat" 
@@ -10,10 +10,10 @@ prompts=(
 )
 
 cal_vals=(
-    90
-    90
-    90
-    135
+    # 90
+    # 90
+    # 90
+    # 135
     135
     135
     90
@@ -21,10 +21,10 @@ cal_vals=(
 )
 
 img_dirs=(
-    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/bear_2.png"
-    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/bird_1.png"
-    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/horse_1.png"
-    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/porcelain_2.png"
+    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/bear_2.png"
+    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/bird_1.png"
+    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/horse_1.png"
+    # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/porcelain_2.png"
     "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/dinosaur.jpg"
     "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/bicycle_1.png"
     "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/corgi_hat_3.png"
@@ -32,14 +32,14 @@ img_dirs=(
 )
 
 gpu_val=(
+    # 0
+    # 1
+    # 2
+    # 3
     0
     1
     2
     3
-    4
-    5
-    6
-    7
 )
 
 
@@ -49,21 +49,20 @@ python launch.py \
     --config configs/prolificdreamer-noise.yaml \
     --train \
     --gpu "${gpu_val[i]}" \
-    system.tag="WARTHOG_prolific_complex_scenes" \
-    system.gradient_masking=true \
+    system.tag="NAIVE_prolific_complex_scenes" \
     data.num_multiview=1 \
-    system.three_noise=true \
+    system.three_noise=false \
     system.prompt_processor.prompt="${prompts[i]}" \
     system.image_dir="${img_dirs[i]}" \
     system.surf_radius=0.05 \
     system.calibration_value="${cal_vals[i]}" \
     system.n_pts_upscaling=9 \
+    data.rand_multi_deg=false \
     system.background_rand="ball" \
     system.noise_alter_interval=30 \
     system.consistency_mask=false \
     data.multiview_deg=9 \
     data.constant_viewpoints=false \
-    data.rand_multi_deg=true \
     system.reprojection_info=false \
     system.guidance.add_loss="cosine_sim" \
     system.guidance.use_normalized_grad=false \
@@ -72,12 +71,12 @@ python launch.py \
     system.guidance.mask_w_timestep=false \
     system.guidance.vis_grad=false \
     system.guidance.use_disp_loss=false \
-    system.guidance.use_sim_loss=true \
+    system.guidance.use_sim_loss=false \
     system.guidance.weight_sim_loss=5.0 \
     system.guidance.weight_disp_loss=1.0 \
     system.guidance.backprop_grad=false \
     system.guidance.debugging=false \
-    system.noise_interval_schedule=true \
+    system.noise_interval_schedule=false \
     trainer.val_check_interval=500 \
     data.n_val_views=20 \
     system.pts_var=0.02 \
