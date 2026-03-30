@@ -38,7 +38,7 @@ cal_vals=(
 )
 
 img_dirs=(
-    "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/deejae.png"
+    "/workspace/data1/minseop/3DConst/threestudio/images/dinosaur.jpg"
     # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/bear_2.png"
     # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/bear_3.jpg"
     # "/mnt/image-net-full/j1nhwa.kim/interns/minseop.kwak/3DConst/threestudio/images/bicycle_1.png"

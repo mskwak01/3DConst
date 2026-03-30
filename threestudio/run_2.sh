@@ -71,7 +71,7 @@ python launch.py \
     system.guidance.cfg_change_iter=1500 \
     data.n_val_views=20 \
     system.pts_var=0.02 \
-    # &
+    &
     
 done
 

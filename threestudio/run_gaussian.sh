@@ -21,7 +21,7 @@ do
 python launch.py \
     --config custom/threestudio-3dgs/configs/gs_sds_pc_init_noising_full.yaml \
     --train \
-    --gpu 2 \
+    --gpu 0 \
     system.tag="pc_depth" \
     data.num_multiview=1 \
     system.gradient_masking=false \
